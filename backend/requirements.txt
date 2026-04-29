@@ -1,82 +1,40 @@
-# 紫微斗數AI系統依賴包
+# ── AI / LLM ──────────────────────────────────────────────────
+anthropic>=0.40.0
+langchain-anthropic>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langgraph>=0.2.50
 
-# AI和機器學習
-langchain==0.1.0
-openai==1.12.0
-anthropic==0.8.1
+# ── OpenAI (embeddings only) ───────────────────────────────────
+openai>=1.50.0
 
-# 向量資料庫
-chromadb==0.4.22
-sentence-transformers==2.2.2
+# ── Vector Store ───────────────────────────────────────────────
+chromadb>=0.5.0
 
-# Hugging Face 模型支持
-transformers==4.36.0
-torch==2.1.0
-tokenizers==0.15.0
+# ── Web Search ─────────────────────────────────────────────────
+tavily-python>=0.3.0        # Tavily API（可選，無 key 則 fallback DuckDuckGo）
 
-# 網頁爬取和解析
-requests==2.31.0
-beautifulsoup4==4.12.2
-lxml==4.9.3
-httpx==0.26.0
+# ── Web Scraping ────────────────────────────────────────────────
+httpx>=0.27.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
 
-# Web框架
-fastapi==0.108.0
-uvicorn==0.25.0
-flask==3.0.0
+# ── Web Framework ──────────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.29.0
 
-# 數據處理
-pandas==2.1.4
-numpy==1.26.2
+# ── Config / Env ───────────────────────────────────────────────
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
 
-# 配置和環境
-python-dotenv==1.0.0
-pydantic==2.5.2
-pydantic-settings==2.1.0
+# ── Logging ────────────────────────────────────────────────────
+loguru>=0.7.0
 
-# 異步支持
-asyncio==3.4.3
-aiohttp==3.9.1
+# ── Async ──────────────────────────────────────────────────────
+aiofiles>=23.2.0
 
-# 日誌和監控
-loguru==0.7.2
-structlog==23.2.0
-
-# 測試
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-mock==3.12.0
-
-# 其他工具
-python-multipart==0.0.6
-jinja2==3.1.2
-aiofiles==23.2.0
-
-# JSON處理和驗證
-jsonschema==4.20.0
-ujson==5.9.0
-
-# 時間處理
-python-dateutil==2.8.2
-
-# 快取支持（可選）
-redis==5.0.1
-
-# 開發工具
-black==23.12.1
-flake8==6.1.0
-mypy==1.8.0
-isort==5.13.2
-
-# 文檔生成
-sphinx==7.2.6
-sphinx-rtd-theme==2.0.0
-
-# 安全
-cryptography==41.0.8
-
-# 監控和指標
-prometheus-client==0.19.0
-
-# 多進程支持
-multiprocessing-logging==0.3.4
+# ── Dev ────────────────────────────────────────────────────────
+pytest>=7.4.0
+pytest-asyncio>=0.23.0

@@ -1,0 +1,289 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design Tokens ──────────────────────────────────────────── */
+:root {
+  --gold:          #C9A84C;
+  --gold-light:    #F0C040;
+  --gold-dim:      #8A6B2A;
+  --gold-glow:     rgba(201, 168, 76, 0.4);
+  --cosmos-deep:   #080618;
+  --cosmos-mid:    #0D0B2B;
+  --mystic-purple: #7B3FBE;
+  --text-primary:  #F5F0E8;
+  --text-secondary:#C4B5FD;
+  --text-muted:    #8B7EAA;
+  --card-bg:       rgba(13, 11, 43, 0.85);
+  --card-border:   rgba(201, 168, 76, 0.25);
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--cosmos-deep);
+  color: var(--text-primary);
+  font-family: 'Noto Sans TC', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--cosmos-deep); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--gold-dim), var(--gold));
+  border-radius: 3px;
+}
+
+/* ── Selection ─────────────────────────────────────────────── */
+::selection {
+  background: rgba(201, 168, 76, 0.3);
+  color: #fff;
+}
+
+/* ── Components ────────────────────────────────────────────── */
+@layer components {
+
+  /* Glass card */
+  .card-glass {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(201,168,76,0.08);
+  }
+
+  /* Gold border card */
+  .card-gold {
+    @apply card-glass rounded-2xl;
+    position: relative;
+  }
+  .card-gold::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(201,168,76,0.6), rgba(201,168,76,0.1), rgba(201,168,76,0.4));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Gold text gradient */
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #C9A84C 0%, #F0C040 40%, #C9A84C 70%, #A8822A 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* Gold button */
+  .btn-gold {
+    background: linear-gradient(135deg, #A8822A 0%, #C9A84C 40%, #F0C040 60%, #C9A84C 80%, #8A6B2A 100%);
+    background-size: 200% auto;
+    color: var(--cosmos-deep);
+    font-weight: 600;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-gold:hover {
+    background-position: right center;
+    box-shadow: 0 0 30px rgba(201,168,76,0.5), 0 0 60px rgba(201,168,76,0.2);
+    transform: translateY(-1px);
+  }
+  .btn-gold:active { transform: translateY(0); }
+  .btn-gold::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -60%;
+    width: 40%;
+    height: 200%;
+    background: rgba(255,255,255,0.15);
+    transform: skewX(-20deg);
+    transition: 0.5s;
+  }
+  .btn-gold:hover::after { left: 120%; }
+
+  /* Ghost gold button */
+  .btn-ghost-gold {
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold);
+    background: transparent;
+    transition: all 0.3s ease;
+  }
+  .btn-ghost-gold:hover {
+    background: rgba(201,168,76,0.1);
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(201,168,76,0.2);
+  }
+
+  /* Divider */
+  .divider-gold {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0.4;
+  }
+
+  /* Input */
+  .input-mystic {
+    background: rgba(8, 6, 24, 0.7);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+    outline: none;
+  }
+  .input-mystic:focus {
+    border-color: rgba(201,168,76,0.6);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.1), 0 0 20px rgba(201,168,76,0.15);
+    background: rgba(13,11,43,0.8);
+  }
+  .input-mystic::placeholder { color: var(--text-muted); }
+
+  /* Select */
+  .select-mystic {
+    @apply input-mystic;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .select-mystic option {
+    background: var(--cosmos-mid);
+    color: var(--text-primary);
+  }
+}
+
+/* ── Keyframes ──────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-12px) rotate(1deg); }
+  66%       { transform: translateY(-6px) rotate(-1deg); }
+}
+
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes rotate-reverse {
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(0deg); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.7); }
+  50%       { opacity: 1;   transform: scale(1.3); }
+}
+
+@keyframes ring-expand {
+  0%   { transform: translate(-50%,-50%) scale(0.5); opacity: 0.8; }
+  100% { transform: translate(-50%,-50%) scale(2.5); opacity: 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(201,168,76,0.2); }
+  50%       { box-shadow: 0 0 60px rgba(201,168,76,0.6), 0 0 120px rgba(201,168,76,0.2); }
+}
+
+@keyframes fade-up {
+  0%   { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes text-reveal {
+  0%   { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0% 0 0); }
+}
+
+@keyframes oracle-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ── Utility animations ─────────────────────────────────────── */
+.animate-float        { animation: float 8s ease-in-out infinite; }
+.animate-float-delay  { animation: float 10s ease-in-out 2s infinite; }
+.animate-rotate-slow  { animation: rotate-slow 40s linear infinite; }
+.animate-rotate-medium{ animation: rotate-slow 20s linear infinite; }
+.animate-rotate-fast  { animation: rotate-slow 8s linear infinite; }
+.animate-reverse      { animation: rotate-reverse 25s linear infinite; }
+.animate-pulse-glow   { animation: pulse-glow 4s ease-in-out infinite; }
+.animate-fade-up      { animation: fade-up 0.7s ease-out forwards; }
+
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-500 { animation-delay: 0.5s; }
+.animate-delay-700 { animation-delay: 0.7s; }
+.animate-delay-1000{ animation-delay: 1s; }
+
+/* ── Particles canvas ───────────────────────────────────────── */
+#star-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Result markdown ────────────────────────────────────────── */
+.result-content h2 {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  margin: 1.5rem 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(201,168,76,0.3);
+}
+.result-content h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 1rem 0 0.5rem;
+}
+.result-content p {
+  line-height: 1.9;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+.result-content strong {
+  color: var(--gold);
+  font-weight: 600;
+}
+.result-content ul {
+  list-style: none;
+  padding: 0;
+}
+.result-content ul li::before {
+  content: '◈ ';
+  color: var(--gold-dim);
+}
+.result-content ul li {
+  margin-bottom: 0.4rem;
+  padding-left: 1.2rem;
+  text-indent: -1.2rem;
+}
