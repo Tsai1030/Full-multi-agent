@@ -15,6 +15,36 @@
 
 ---
 
+## 📸 系統展示
+
+### 🧮 真實命盤盤面（本版新功能）
+
+由官方 iztro 引擎精準排盤，自訂主題十二宮格完整呈現主輔星、四化、大限。
+
+<p align="center">
+  <img src="./public/screenshots/命盤截圖.png" alt="紫微斗數命盤盤面" width="85%" />
+</p>
+
+### 操作流程
+
+| 1️⃣ 首頁 | 2️⃣ 輸入出生資料 |
+|:---:|:---:|
+| ![首頁畫面](./public/screenshots/首頁畫面.png) | ![輸入資料畫面](./public/screenshots/輸入資料畫面.png) |
+
+| 3️⃣ 命盤推算中 | 4️⃣ AI 深度解析結果 |
+|:---:|:---:|
+| ![分析載入](./public/screenshots/分析loading.png) | ![分析結果](./public/screenshots/result.png) |
+
+### ⚙️ Multi-Agent 後端運作
+
+LangGraph multi-agent 依序排盤注入、查詢知識庫、彙整解盤的後端流程。
+
+<p align="center">
+  <img src="./public/screenshots/multi-agent後端畫面.png" alt="Multi-Agent 後端畫面" width="85%" />
+</p>
+
+---
+
 ## ✨ 核心特色
 
 ### 🧮 真實命盤，絕不編造
