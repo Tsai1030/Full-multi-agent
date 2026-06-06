@@ -1,181 +1,126 @@
 """
-Graph Nodes
-每個節點是一個純函式（async），接收 GraphState 並回傳 state 更新 dict。
+Graph Nodes — 真正的 Multi-Agent（全部使用 Gemini）
 
-節點職責：
-  orchestrator  - 決定下一步行動（呼叫哪個工具 or 結束）
-  tool_executor - 執行 LangGraph ToolNode 的工具
-  synthesizer   - 彙整所有資訊，生成最終命盤解析
+流程：
+  researcher → ┌ reasoning_agent ┐
+               ├ domain_agent     ┤→ coordinator → END
+               └ creative_agent   ┘
+                 （三者並行 fan-out / fan-in）
+
+每個專家 agent 是一顆獨立 persona 的 Gemini 呼叫，各自針對同一份命盤分析；
+最後由 coordinator 整合三方觀點成最終報告。
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-)
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import ToolNode
 from loguru import logger
 
 from .state import GraphState
 from ..tools import search_ziwei_knowledge, web_search
 from ..ziwei import format_chart_for_llm
 
-# ── 工具清單（供 ToolNode 與 LLM 使用）────────────────────────
-# 命盤已由前端 iztro 計算並隨請求送入 state，故不再需要取盤工具，
-# orchestrator 只需查詢知識庫 / 網路補充資訊。
+# 供 /api/status 列出（researcher 內部使用知識庫；web_search 視需要）
 AGENT_TOOLS = [search_ziwei_knowledge, web_search]
 
 
-def _get_llm(with_tools: bool = True) -> ChatGoogleGenerativeAI:
+def _get_llm() -> ChatGoogleGenerativeAI:
     from ..config.settings import get_settings
+
     s = get_settings()
-    llm = ChatGoogleGenerativeAI(
+    return ChatGoogleGenerativeAI(
         model=s.gemini_model,
         google_api_key=s.google_api_key,
         max_output_tokens=s.gemini_max_tokens,
         temperature=s.gemini_temperature,
     )
-    return llm.bind_tools(AGENT_TOOLS) if with_tools else llm
 
 
-# ── Orchestrator Node ─────────────────────────────────────────
+# ── persona 系統提示 ──────────────────────────────────────────
 
-ORCHESTRATOR_SYSTEM = """\
-你是一個紫微斗數命理分析系統的 AI 協調者。
+REASONING_PERSONA = """\
+你是「推理分析師」，紫微斗數團隊中負責嚴謹邏輯推演的命理師。
 
-命盤已由系統（iztro 排盤引擎）精準計算完成，並附在使用者訊息中，
-你不需要、也不應該自行排盤或編造星曜，請完全以附上的命盤為準。
+你的職責：
+- 從命盤結構出發：命宮主星與格局、身宮、五行局、命主／身主
+- 分析三方四正（命宮、財帛、官祿、遷移）的星曜組合與相互牽引
+- 點出主星廟旺亮度、生年四化（祿權科忌）對格局的關鍵影響
+- 推論性格底層特質與人生主軸，論述要有因果、有依據
 
-你擁有以下工具：
-1. search_ziwei_knowledge - 搜索紫微斗數知識庫（RAG）
-2. web_search             - 搜索網路上的最新資訊
-
-分析流程：
-1. 先閱讀附上的命盤，找出命宮主星、身宮、五行局與請求領域相關的宮位
-2. 用 search_ziwei_knowledge 查詢命盤中主要星曜 / 宮位 / 四化的涵義
-3. 視需要用 web_search 補充運勢資訊
-4. 當你蒐集到足夠資訊後，回覆「分析完成，我已準備好撰寫最終報告。」
-
-重要：每次只呼叫一個工具，蒐集到足夠資訊後才停止工具呼叫。
+要求：以繁體中文、條理清晰地論述（非 JSON）；只依據附上的命盤與知識，不杜撰星曜。
 """
 
+CREATIVE_PERSONA = """\
+你是「創意詮釋師」，紫微斗數團隊中負責把命理轉成生活語言的命理師。
 
-async def orchestrator_node(state: GraphState) -> dict[str, Any]:
-    """
-    主控節點：使用 LLM 決定下一步要呼叫哪個工具。
-    當 LLM 認為資料充足時停止呼叫工具（不再帶 tool_calls）。
+你的職責：
+- 把抽象的星曜格局，轉成貼近現代生活、具體可感的描述與比喻
+- 著重當事人的生活情境、人際互動、心態與成長建議
+- 語氣溫暖、鼓勵、有畫面感，但不浮誇、不做絕對化的負面預言
 
-    注意：首次進入時必須把使用者訊息（含命盤）持久化進 state，
-    否則之後的回合會以「model function_call」開頭，
-    Gemini 會拒絕（function call 必須緊接在 user / function_response 之後）。
-    """
-    logger.info(f"[orchestrator] iteration={state['iterations']}")
+要求：以繁體中文散文書寫（非 JSON）；以附上的命盤為依據，與推理分析互補而非重複堆砌術語。
+"""
 
-    history = list(state["messages"])
-    new_messages: list[BaseMessage] = []
+DOMAIN_PERSONA_BASE = """\
+你是「領域專家」，紫微斗數團隊中針對特定主題深入剖析的資深命理師。
+請以繁體中文、專業而實用地論述（非 JSON），只依據附上的命盤與知識。
 
-    # 首次進入：建構並持久化使用者訊息（含命盤）
-    if not history:
-        birth = state["birth_data"]
-        chart_text = format_chart_for_llm(state.get("chart_data"))
-        intro = (
-            f"請分析此命盤：\n"
-            f"- 性別：{birth.get('gender')}\n"
-            f"- 出生：{birth.get('birth_year')}年{birth.get('birth_month')}月"
-            f"{birth.get('birth_day')}日 {birth.get('birth_hour')}時\n"
-            f"- 分析領域：{state['domain_type']}\n"
-            f"- 問題：{state.get('user_question', '整體命盤解析')}\n\n"
-            f"以下是系統排好的命盤，請以此為唯一依據：\n\n"
-            f"{chart_text}"
-        )
-        human = HumanMessage(content=intro)
-        new_messages.append(human)
-        history = [human]
+本次聚焦領域與重點：
+"""
 
-    llm = _get_llm(with_tools=True)
-    # SystemMessage 每次都帶（langchain-google-genai 會轉成 system_instruction，不入歷史）
-    response: AIMessage = await llm.ainvoke(
-        [SystemMessage(content=ORCHESTRATOR_SYSTEM), *history]
-    )
-    new_messages.append(response)
+DOMAIN_FOCUS: dict[str, str] = {
+    "love": (
+        "【感情姻緣】\n"
+        "- 夫妻宮主星與特質、福德宮（情感內在）、遷移宮（外緣）\n"
+        "- 桃花星（紅鸞、天喜、咸池、天姚）與正緣／桃花格局\n"
+        "- 感情中的優勢與課題、適合的對象類型、感情發展時機與化解建議"
+    ),
+    "wealth": (
+        "【財富事業】\n"
+        "- 財帛宮、官祿宮（事業）主星與財星組合（武曲、太陰、天府等）\n"
+        "- 求財方式與適合行業、事業發展策略、投資理財風格與風險\n"
+        "- 財運高低週期與提升財運的具體方法"
+    ),
+    "future": (
+        "【未來運勢】\n"
+        "- 當前大限與未來流年趨勢、人生階段定位\n"
+        "- 重要轉折點與機會、健康與家庭人際面向\n"
+        "- 趨吉避凶的時機掌握與人生規劃建議"
+    ),
+    "comprehensive": (
+        "【綜合命盤】\n"
+        "- 十二宮整體格局的統合：命格高低、主軸與隱憂\n"
+        "- 感情、財富事業、健康、家庭、人際的全方位重點\n"
+        "- 一生格局走勢與最關鍵的人生建議"
+    ),
+}
 
-    return {
-        "messages": new_messages,
-        "iterations": state["iterations"] + 1,
-    }
+COORDINATOR_PERSONA = """\
+你是紫微斗數團隊的「首席命理師（整合者）」。
+團隊中的推理分析師、領域專家、創意詮釋師已各自完成分析，
+請你彙整三方觀點，產出一份完整、連貫、不重複的最終解析報告。
 
-
-# ── ToolNode（LangGraph prebuilt）────────────────────────────
-
-tool_node = ToolNode(AGENT_TOOLS)
-
-
-# ── Synthesizer Node ──────────────────────────────────────────
-
-SYNTHESIZER_SYSTEM = """\
-你是一位專業的紫微斗數命理師，擅長以清晰易懂的方式解析命盤。
-
-請根據以下資料，撰寫一份完整的命盤解析報告：
-1. 以繁體中文回覆
-2. 先點明命宮主星與格局
-3. 針對請求的分析領域深入解析
-4. 給出具體的建議
-5. 語氣專業但親切，避免絕對化的負面預測
+要求：
+1. 以繁體中文撰寫
+2. 融合三位的洞見：保留推理的嚴謹、領域的專業、創意的生活感
+3. 若三方有分歧，做出平衡判斷並說明
+4. 語氣專業而親切，避免絕對化的負面預測
+5. 結尾給出具體、可執行的建議
 
 輸出格式：
 ## 命盤基本格局
-## {domain_type} 分析
-## 建議與注意事項
+## {domain} 深入解析
+## 綜合建議與提醒
 """
-
-
-async def synthesizer_node(state: GraphState) -> dict[str, Any]:
-    """
-    彙整節點：整合所有工具結果，生成最終命盤解析報告。
-    """
-    logger.info("[synthesizer] generating final answer")
-
-    # 整理所有對話歷史成彙整提示
-    tool_summary = _build_tool_summary(state)
-
-    domain = state.get("domain_type", "comprehensive")
-    system_prompt = SYNTHESIZER_SYSTEM.replace("{domain_type}", domain)
-
-    final_request = (
-        f"請根據以下收集到的所有資料，撰寫最終的紫微斗數命盤解析報告。\n\n"
-        f"{tool_summary}"
-    )
-
-    llm = _get_llm(with_tools=False)
-    messages = [
-        SystemMessage(content=system_prompt),
-        *state["messages"],
-        HumanMessage(content=final_request),
-    ]
-    response: AIMessage = await llm.ainvoke(messages)
-
-    return {
-        "final_answer": _content_to_text(response.content),
-        "messages": [response],
-        "should_end": True,
-    }
 
 
 # ── helpers ───────────────────────────────────────────────────
 
 def _content_to_text(content: Any) -> str:
-    """
-    把 LLM 回覆內容統一轉成純文字。
-    Gemini 3.x（含 thinking）回傳的 content 可能是 list of parts，
-    每個 part 為 {'type': 'text', 'text': '...'} 或字串。
-    """
+    """把 LLM 回覆統一轉純文字（Gemini 3.x 可能回 list of parts）。"""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -183,20 +128,159 @@ def _content_to_text(content: Any) -> str:
         for p in content:
             if isinstance(p, str):
                 parts.append(p)
-            elif isinstance(p, dict):
-                # 只取文字部分，忽略 thinking signature 等
-                if p.get("type") in (None, "text") and p.get("text"):
-                    parts.append(str(p["text"]))
+            elif isinstance(p, dict) and p.get("type") in (None, "text") and p.get("text"):
+                parts.append(str(p["text"]))
         return "".join(parts)
     return str(content) if content is not None else ""
 
 
-def _build_tool_summary(state: GraphState) -> str:
-    """從 messages 中提取工具呼叫結果摘要"""
-    from langchain_core.messages import ToolMessage
+def _ming_gong_major_stars(chart: dict[str, Any] | None) -> list[str]:
+    """取命宮主星名稱（供 researcher 組查詢）。"""
+    for p in (chart or {}).get("palaces", []) or []:
+        if isinstance(p, dict) and p.get("name") == "命宮":
+            return [s.get("name") for s in p.get("majorStars", []) if isinstance(s, dict) and s.get("name")]
+    return []
 
-    parts = []
-    for msg in state["messages"]:
-        if isinstance(msg, ToolMessage):
-            parts.append(f"[工具：{msg.name}]\n{msg.content[:1000]}")
-    return "\n\n".join(parts) if parts else "（無工具結果）"
+
+def _build_agent_input(state: GraphState) -> str:
+    """組出每個 agent 共用的使用者訊息（命盤 + 知識脈絡 + 需求）。"""
+    birth = state["birth_data"]
+    chart_text = format_chart_for_llm(state.get("chart_data"))
+    rag_context = state.get("rag_context") or "（無額外知識庫資料）"
+    return (
+        f"出生資料：{birth.get('gender')}，"
+        f"{birth.get('birth_year')}年{birth.get('birth_month')}月{birth.get('birth_day')}日 "
+        f"{birth.get('birth_hour')}時\n"
+        f"分析領域：{state.get('domain_type')}\n"
+        f"使用者問題：{state.get('user_question') or '整體命盤解析'}\n\n"
+        f"=== 命盤（唯一依據）===\n{chart_text}\n\n"
+        f"=== 紫微斗數知識庫參考 ===\n{rag_context}"
+    )
+
+
+async def _run_agent(
+    state: GraphState, *, role: str, label: str, system_prompt: str
+) -> dict[str, Any]:
+    """執行單一專家 agent，回傳 agent_outputs 片段。"""
+    logger.info(f"[agent:{role}] analyzing …")
+    user_msg = _build_agent_input(state)
+    try:
+        llm = _get_llm()
+        resp: AIMessage = await llm.ainvoke(
+            [SystemMessage(content=system_prompt), HumanMessage(content=user_msg)]
+        )
+        content = _content_to_text(resp.content).strip()
+    except Exception as exc:  # 單一 agent 失敗不影響其他 agent
+        logger.error(f"[agent:{role}] failed: {exc}")
+        content = ""
+    return {"agent_outputs": [{"role": role, "label": label, "content": content}]}
+
+
+# ── researcher node ───────────────────────────────────────────
+
+async def researcher_node(state: GraphState) -> dict[str, Any]:
+    """依命盤主星 / 領域 / 問題檢索知識庫，組成共享 rag_context。"""
+    from ..config.settings import get_settings
+    from ..rag.retriever import RAGRetriever
+    from ..rag.vector_store import ZiweiVectorStore
+
+    s = get_settings()
+    domain = state.get("domain_type", "comprehensive")
+    stars = _ming_gong_major_stars(state.get("chart_data"))
+
+    queries: list[str] = []
+    if stars:
+        queries.append(f"{' '.join(stars)} 坐命宮的特質與格局")
+    domain_query = {
+        "love": "夫妻宮 感情 桃花 婚姻運勢",
+        "wealth": "財帛宮 官祿宮 財運 事業 財星",
+        "future": "大限 流年 運勢 人生階段",
+        "comprehensive": "命宮 格局 三方四正 整體命盤",
+    }.get(domain, "命宮 格局 整體命盤")
+    queries.append(domain_query)
+    if state.get("user_question"):
+        queries.append(state["user_question"])
+
+    parts: list[str] = []
+    try:
+        store = ZiweiVectorStore(
+            persist_directory=s.rag_vector_db_path,
+            collection_name=s.rag_collection_name,
+            api_key=s.google_api_key,
+            embedding_model=s.gemini_embedding_model,
+            provider=s.embedding_provider,
+        )
+        retriever = RAGRetriever(store, default_top_k=s.rag_top_k, default_min_score=s.rag_min_score)
+        seen: set[str] = set()
+        for q in queries:
+            if q in seen:
+                continue
+            seen.add(q)
+            ctx = retriever.search_and_format(q, top_k=3)
+            if ctx:
+                parts.append(f"〔查詢：{q}〕\n{ctx}")
+    except Exception as exc:
+        logger.warning(f"[researcher] RAG failed (non-fatal): {exc}")
+
+    rag_context = "\n\n".join(parts)
+    logger.info(f"[researcher] gathered {len(rag_context)} chars from {len(queries)} queries")
+    return {"rag_context": rag_context}
+
+
+# ── specialist agents（並行）──────────────────────────────────
+
+async def reasoning_agent_node(state: GraphState) -> dict[str, Any]:
+    return await _run_agent(
+        state, role="reasoning", label="推理分析師", system_prompt=REASONING_PERSONA
+    )
+
+
+async def domain_agent_node(state: GraphState) -> dict[str, Any]:
+    domain = state.get("domain_type", "comprehensive")
+    focus = DOMAIN_FOCUS.get(domain, DOMAIN_FOCUS["comprehensive"])
+    system_prompt = DOMAIN_PERSONA_BASE + focus
+    return await _run_agent(
+        state, role="domain", label="領域專家", system_prompt=system_prompt
+    )
+
+
+async def creative_agent_node(state: GraphState) -> dict[str, Any]:
+    return await _run_agent(
+        state, role="creative", label="創意詮釋師", system_prompt=CREATIVE_PERSONA
+    )
+
+
+# ── coordinator node（整合）───────────────────────────────────
+
+async def coordinator_node(state: GraphState) -> dict[str, Any]:
+    """整合三個 agent 的輸出，產生最終報告。"""
+    logger.info("[coordinator] integrating agent outputs")
+    outputs = state.get("agent_outputs", []) or []
+    domain = state.get("domain_type", "comprehensive")
+
+    present = [o for o in outputs if o.get("content")]
+    if not present:
+        return {"final_answer": "（多代理人皆未能產生分析，請稍後再試）"}
+
+    sections = "\n\n".join(
+        f"### 【{o.get('label', o.get('role'))}】的分析\n{o['content']}" for o in present
+    )
+    system_prompt = COORDINATOR_PERSONA.replace("{domain}", domain)
+    chart_text = format_chart_for_llm(state.get("chart_data"))
+    user_msg = (
+        f"命盤摘要：\n{chart_text}\n\n"
+        f"以下是團隊三位命理師各自的分析，請整合成最終報告：\n\n{sections}"
+    )
+
+    try:
+        llm = _get_llm()
+        resp: AIMessage = await llm.ainvoke(
+            [SystemMessage(content=system_prompt), HumanMessage(content=user_msg)]
+        )
+        final = _content_to_text(resp.content).strip()
+    except Exception as exc:
+        logger.error(f"[coordinator] failed: {exc}")
+        # 退而求其次：直接串接各 agent 輸出
+        final = "\n\n".join(f"## {o.get('label')}\n{o['content']}" for o in present)
+
+    return {"final_answer": final, "should_end": True}

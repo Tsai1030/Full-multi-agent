@@ -2,20 +2,22 @@
 Graph Builder
 組裝 LangGraph StateGraph，編譯成可執行的 CompiledGraph
 
-Graph 結構（帶 loop）：
+Multi-Agent 結構（並行 fan-out / fan-in）：
 
     START
       │
       ▼
-  orchestrator  ◄─────────────────────┐
-      │                               │
-      ▼  (should_continue)            │
-  ┌─────────────────┐                 │
-  │  tool_calls?    │                 │
-  ├─── YES ──► tools ─────────────────┘
-  └─── NO  ──► synthesizer
-                  │
-                 END
+  researcher
+      │  fan-out（三者並行執行）
+      ├──────────────┬──────────────┐
+      ▼              ▼              ▼
+  reasoning_agent  domain_agent  creative_agent
+      └──────────────┴──────────────┘
+                     │  fan-in（等三者都完成）
+                     ▼
+                coordinator
+                     │
+                    END
 """
 
 from __future__ import annotations
@@ -24,9 +26,16 @@ from functools import lru_cache
 
 from langgraph.graph import END, START, StateGraph
 
-from .edges import should_continue
-from .nodes import orchestrator_node, synthesizer_node, tool_node
+from .nodes import (
+    coordinator_node,
+    creative_agent_node,
+    domain_agent_node,
+    reasoning_agent_node,
+    researcher_node,
+)
 from .state import GraphState
+
+_AGENTS = ("reasoning_agent", "domain_agent", "creative_agent")
 
 
 def build_graph() -> StateGraph:
@@ -35,28 +44,22 @@ def build_graph() -> StateGraph:
     builder = StateGraph(GraphState)
 
     # ── 節點 ──────────────────────────────────────────────────
-    builder.add_node("orchestrator", orchestrator_node)
-    builder.add_node("tools", tool_node)
-    builder.add_node("synthesizer", synthesizer_node)
+    builder.add_node("researcher", researcher_node)
+    builder.add_node("reasoning_agent", reasoning_agent_node)
+    builder.add_node("domain_agent", domain_agent_node)
+    builder.add_node("creative_agent", creative_agent_node)
+    builder.add_node("coordinator", coordinator_node)
 
     # ── 邊 ────────────────────────────────────────────────────
-    builder.add_edge(START, "orchestrator")
+    builder.add_edge(START, "researcher")
 
-    # orchestrator → tools | synthesizer （條件路由）
-    builder.add_conditional_edges(
-        "orchestrator",
-        should_continue,
-        {
-            "tools": "tools",
-            "synthesizer": "synthesizer",
-        },
-    )
+    # researcher → 三個 agent（fan-out，並行）
+    # 三個 agent → coordinator（fan-in，等全部完成）
+    for agent in _AGENTS:
+        builder.add_edge("researcher", agent)
+        builder.add_edge(agent, "coordinator")
 
-    # tools → orchestrator（loop 回去）
-    builder.add_edge("tools", "orchestrator")
-
-    # synthesizer → END
-    builder.add_edge("synthesizer", END)
+    builder.add_edge("coordinator", END)
 
     return builder
 

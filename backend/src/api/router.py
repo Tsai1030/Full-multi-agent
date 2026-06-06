@@ -39,6 +39,8 @@ async def analyze_chart(request: AnalysisRequest) -> AnalysisResponse:
             "domain_type": request.domain_type,
             "user_question": request.user_question or f"{request.domain_type} 分析",
             "chart_data": request.chart,
+            "rag_context": "",
+            "agent_outputs": [],
             "rag_results": [],
             "search_results": [],
             "iterations": 0,
@@ -60,13 +62,17 @@ async def analyze_chart(request: AnalysisRequest) -> AnalysisResponse:
 
         elapsed = round((time.perf_counter() - t0) * 1000)
         answer = final_state.get("final_answer") or "（無法產生分析結果）"
+        agent_outputs = [
+            o for o in final_state.get("agent_outputs", []) if o.get("content")
+        ]
 
         return AnalysisResponse(
             success=True,
             result=answer,
+            agents=agent_outputs or None,
             metadata={
                 "domain_type": request.domain_type,
-                "iterations": final_state.get("iterations", 0),
+                "agents_used": len(agent_outputs),
                 "elapsed_ms": elapsed,
             },
         )
@@ -102,7 +108,13 @@ async def system_status() -> SystemStatusResponse:
         status="ok",
         rag_docs=rag_docs,
         tools=[t.name for t in AGENT_TOOLS],
-        graph_nodes=["orchestrator", "tools", "synthesizer"],
+        graph_nodes=[
+            "researcher",
+            "reasoning_agent",
+            "domain_agent",
+            "creative_agent",
+            "coordinator",
+        ],
     )
 
 

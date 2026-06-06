@@ -36,10 +36,19 @@ class AnalysisRequest(BaseModel):
     )
 
 
+class AgentOutput(BaseModel):
+    role: str = Field(..., description="agent 角色代碼：reasoning / domain / creative")
+    label: str = Field(..., description="顯示名稱，如「推理分析師」")
+    content: str = Field(..., description="該 agent 的個別分析內容")
+
+
 class AnalysisResponse(BaseModel):
     success: bool
     result: str | None = None
     error: str | None = None
+    agents: list[AgentOutput] | None = Field(
+        default=None, description="多代理人各自的分析（供前端展示運作過程）"
+    )
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -1,13 +1,88 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
-import type { AnalysisResponse } from "@/types";
+import type { AnalysisResponse, AgentOutput } from "@/types";
 
 interface ResultDisplayProps {
   result: AnalysisResponse;
   onReset: () => void;
+}
+
+/** 各 agent 角色的圖示與色調 */
+const AGENT_STYLE: Record<string, { icon: string; accent: string }> = {
+  reasoning: { icon: "⚖", accent: "text-sky-300" },
+  domain: { icon: "🎯", accent: "text-gold-300" },
+  creative: { icon: "✦", accent: "text-mystic-300" },
+};
+
+function AgentProcess({ agents }: { agents: AgentOutput[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+
+  return (
+    <motion.div variants={item} className="card-gold rounded-3xl p-6 sm:p-8 mb-6">
+      <div className="text-center mb-5">
+        <p className="text-xs tracking-[0.35em] text-gold-500 uppercase mb-1">
+          Multi-Agent
+        </p>
+        <h3 className="font-serif text-lg font-bold text-parchment">
+          多代理人分析過程
+        </h3>
+        <p className="mt-1 text-xs text-parchment-muted">
+          {agents.length} 位命理師各自獨立分析，再由首席整合 · 點擊展開
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {agents.map((a) => {
+          const style = AGENT_STYLE[a.role] ?? { icon: "✶", accent: "text-parchment" };
+          const isOpen = open === a.role;
+          return (
+            <div
+              key={a.role}
+              className="border border-gold-800/40 rounded-2xl overflow-hidden bg-cosmos-900/40"
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : a.role)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left
+                  hover:bg-cosmos-700/40 transition-colors duration-300"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className={`text-lg ${style.accent}`}>{style.icon}</span>
+                  <span className="font-serif font-semibold text-parchment">{a.label}</span>
+                </span>
+                <span
+                  className={`text-gold-500 transition-transform duration-300 ${
+                    isOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  ▾
+                </span>
+              </button>
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div
+                      className="result-content px-4 pb-4 pt-1 text-sm border-t border-gold-800/30"
+                      dangerouslySetInnerHTML={{ __html: formatResult(a.content) }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
 }
 
 function formatResult(text: string): string {
@@ -73,8 +148,11 @@ export default function ResultDisplay({ result, onReset }: ResultDisplayProps) {
         <div className="divider-gold w-24 mx-auto mt-4" />
       </motion.div>
 
-      {/* Result content card */}
+      {/* Integrated report card */}
       <motion.div variants={item} className="card-gold rounded-3xl p-8 mb-6">
+        <p className="text-xs tracking-[0.3em] text-gold-500 uppercase mb-3 text-center">
+          ✦ 首席整合報告
+        </p>
         <div
           ref={contentRef}
           className="result-content"
@@ -82,12 +160,20 @@ export default function ResultDisplay({ result, onReset }: ResultDisplayProps) {
         />
       </motion.div>
 
+      {/* Per-agent process (collapsible) */}
+      {result.agents && result.agents.length > 0 && (
+        <AgentProcess agents={result.agents} />
+      )}
+
       {/* Metadata badge */}
       {result.metadata && (
-        <motion.div variants={item} className="flex gap-3 justify-center mb-8">
+        <motion.div variants={item} className="flex gap-3 justify-center mb-8 flex-wrap">
           {[
             { label: "分析領域", value: result.metadata.domain_type },
-            { label: "推理迭代", value: `${result.metadata.iterations} 次` },
+            {
+              label: "參與代理人",
+              value: `${result.metadata.agents_used ?? result.agents?.length ?? 0} 位`,
+            },
           ].map((m) => (
             <div
               key={m.label}

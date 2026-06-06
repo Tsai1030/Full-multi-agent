@@ -8,6 +8,13 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# 把 repo 根目錄的 .env 載入 os.environ（pydantic-settings 不會寫進 os.environ，
+# 但 LangSmith 等讀 os.environ 的套件需要；務必在 import graph 之前執行）
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 import uvicorn
 from fastapi import FastAPI

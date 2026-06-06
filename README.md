@@ -56,10 +56,11 @@ LangGraph multi-agent 依序排盤注入、查詢知識庫、彙整解盤的後�
 - 傳統 **4×4 十二宮格** 盤面，中央顯示基本命格資訊。
 - 沿用金色／星空神秘主題，四化以彩色標籤標示，響應式設計。
 
-### 🤖 LangGraph Multi-Agent（ReAct Loop）
-- `orchestrator → tools → synthesizer` 的 Graph 架構，動態決定工具呼叫順序。
-- 讀取已排好的命盤，自主查詢知識庫 / 網路，最後彙整成結構化解析報告。
-- 迭代上限保護，確保回應時間可控。
+### 🤖 真正的 LangGraph Multi-Agent
+- **三位獨立 persona 的 Gemini agent 並行分析**同一命盤：推理分析師、領域專家、創意詮釋師。
+- 先由 **researcher** 檢索知識庫產出共享脈絡，最後由 **coordinator（首席整合者）** 彙整三方觀點。
+- 並行 fan-out / fan-in，名實相符的多代理人協作（非單模型扮多角）。
+- 前端可展開「多代理人分析過程」，看見每位 agent 的個別分析。
 
 ### 📚 RAG 專業知識庫
 - **ChromaDB** 持久化向量庫，啟動時自動索引（idempotent）。
@@ -75,42 +76,50 @@ LangGraph multi-agent 依序排盤注入、查詢知識庫、彙整解盤的後�
 
 ## 🏗️ 系統架構
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      Frontend (Next.js 14)                         │
-│                                                                    │
-│   出生資料表單 ──▶ iztro 排盤引擎（瀏覽器端，精準計算命盤）          │
-│        │                    │                                      │
-│        │                    ▼                                      │
-│        │            <ZiweiChart> 主題盤面（十二宮 / 四化 / 大限）   │
-│        │                                                          │
-│        └────── POST /api/analyze  { birth_data, chart } ──────┐   │
-└──────────────────────────────────────────────────────────────┼───┘
-                                                                │
-┌───────────────────────────────────────────────────────────────▼──┐
-│                       FastAPI (port 8000)                         │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                   LangGraph StateGraph                       │ │
-│  │                                                              │ │
-│  │   START → orchestrator ──┐  (命盤已注入 prompt)              │ │
-│  │               ▲          │ tool_calls?                       │ │
-│  │               │ loop     ▼                                   │ │
-│  │             tools ◄──────┘                                   │ │
-│  │               │  max_iterations                              │ │
-│  │               ▼                                              │ │
-│  │          synthesizer → END （結構化解盤報告）                │ │
-│  └──────────────┬──────────────────────┬────────────────────────┘ │
-│                 │                      │                          │
-│         search_ziwei_knowledge    web_search                     │
-│            (ChromaDB +          (Tavily / DuckDuckGo)             │
-│             Gemini Embedding)                                    │
-│                                                                  │
-│   LLM：Google Gemini（gemini-3.5-flash）via langchain-google-genai│
-└──────────────────────────────────────────────────────────────────┘
+整體資料流：前端用 iztro 精準排盤 → 畫盤 + 把命盤 JSON 送後端 → LangGraph 多代理人解盤。
+
+```mermaid
+flowchart TD
+    subgraph FE["🖥️ Frontend · Next.js 14"]
+        Form["出生資料表單"] --> Iztro["iztro 排盤引擎<br/>（瀏覽器端精準計算）"]
+        Iztro --> Board["&lt;ZiweiChart&gt; 主題盤面<br/>十二宮 / 四化 / 大限"]
+        Iztro --> Post["POST /api/analyze<br/>{ birth_data, chart }"]
+    end
+
+    Post -->|HTTP| API["⚡ FastAPI · port 8000"]
+
+    subgraph BE["🧠 LangGraph Multi-Agent（全 Gemini）"]
+        API --> R["researcher<br/>檢索 RAG 知識庫 → 共享脈絡"]
+        R --> A1["推理分析師<br/>格局 / 三方四正 / 星曜邏輯"]
+        R --> A2["領域專家<br/>感情 / 財富 / 未來 / 綜合"]
+        R --> A3["創意詮釋師<br/>生活化詮釋與建議"]
+        A1 --> C["coordinator<br/>首席整合者 → 最終報告"]
+        A2 --> C
+        A3 --> C
+    end
+
+    C -->|"result + agents[]"| Result["前端呈現<br/>整合報告 + 可展開的個別分析"]
+
+    R -.查詢.-> RAG[("ChromaDB<br/>Gemini Embedding")]
+
+    classDef agent fill:#1E1645,stroke:#C9A84C,color:#F5F0E8;
+    classDef infra fill:#0D0B2B,stroke:#8B5CF6,color:#C4B5FD;
+    class A1,A2,A3 agent;
+    class R,C,RAG infra;
 ```
 
-> **設計重點**：命盤計算在前端用 iztro 完成（單一可信來源），同一份命盤 JSON 同時用於
-> 「畫盤」與「送後端解盤」，後端不再爬取外部網站，準確且穩定。
+**multi-agent 流程（並行 fan-out / fan-in）**：
+
+```
+START → researcher → ┌ 推理分析師 ┐
+                     ├ 領域專家   ┤（三者並行）→ coordinator → END
+                     └ 創意詮釋師 ┘
+```
+
+> **設計重點**
+> 1. 命盤計算在前端用 iztro 完成（單一可信來源），同一份命盤 JSON 同時用於「畫盤」與「送後端解盤」，後端不再爬取外部網站。
+> 2. 三位 agent 是**各自獨立 persona 的 Gemini 呼叫**、並行執行，再由 coordinator 整合 —— 名實相符的多代理人協作。
+> 3. 全程可用 **LangSmith** 觀察 graph 每一步（見下方〈觀察 Multi-Agent 流程〉）。
 
 ---
 
@@ -219,10 +228,9 @@ Full-multi-agent/
 │       ├── ziwei/
 │       │   └── format.py         # 命盤 JSON → 中文摘要（餵給 agent）
 │       ├── graph/
-│       │   ├── state.py          # GraphState（含 chart_data）
-│       │   ├── nodes.py          # orchestrator / tool_node / synthesizer（Gemini）
-│       │   ├── edges.py          # should_continue 條件路由
-│       │   └── builder.py        # StateGraph 編譯（lru_cache 單例）
+│       │   ├── state.py          # GraphState（chart_data / rag_context / agent_outputs）
+│       │   ├── nodes.py          # researcher / 3 個 agent / coordinator（Gemini persona）
+│       │   └── builder.py        # 並行 fan-out/fan-in graph（lru_cache 單例）
 │       ├── tools/
 │       │   ├── rag_tool.py       # @tool search_ziwei_knowledge
 │       │   └── web_search.py     # @tool web_search（Tavily + DDG）
@@ -280,10 +288,17 @@ Full-multi-agent/
 ```json
 {
   "success": true,
-  "result": "## 命盤基本格局\n...",
-  "metadata": { "domain_type": "comprehensive", "iterations": 6, "elapsed_ms": 18234 }
+  "result": "## 命盤基本格局\n...（coordinator 整合後的報告）",
+  "agents": [
+    { "role": "reasoning", "label": "推理分析師", "content": "..." },
+    { "role": "domain",    "label": "領域專家",   "content": "..." },
+    { "role": "creative",  "label": "創意詮釋師", "content": "..." }
+  ],
+  "metadata": { "domain_type": "comprehensive", "agents_used": 3, "elapsed_ms": 51900 }
 }
 ```
+
+> `agents` 為三位 agent 的個別分析，供前端「多代理人分析過程」展示；`result` 為整合後最終報告。
 
 | 端點 | 說明 |
 |------|------|
@@ -306,8 +321,9 @@ Full-multi-agent/
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | RAG 嵌入模型 |
 | `EMBEDDING_PROVIDER` | `gemini` | `gemini` 或 `openai` |
 | `TAVILY_API_KEY` | 空 | 留空則用 DuckDuckGo |
-| `GRAPH_MAX_ITERATIONS` | `6` | ReAct loop 最大迭代次數 |
+| `GEMINI_TEMPERATURE` | `0.7` | agent 生成溫度 |
 | `RAG_TOP_K` / `RAG_MIN_SCORE` | `5` / `0.3` | RAG 檢索參數 |
+| `LANGCHAIN_TRACING_V2` | `false` | 設 `true` + 金鑰即啟用 LangSmith 追蹤 |
 | `APP_CORS_ORIGINS` | `http://localhost:3000` | 前端來源白名單 |
 
 > **時辰對應**：地支 `子→0 … 亥→11`（`子時` 取 `00:00–01:00` 早子，與一般 iztro 應用一致）。
@@ -317,9 +333,35 @@ Full-multi-agent/
 ## 🧩 技術細節
 
 - **命盤一致性**：前端 [`lib/ziwei.ts`](frontend/src/lib/ziwei.ts) 呼叫 `astro.bySolar(date, timeIndex, gender, true, 'zh-TW')`，序列化後同時供 [`ZiweiChart.tsx`](frontend/src/components/ZiweiChart.tsx) 畫盤與後端解盤。
-- **後端格式化**：[`ziwei/format.py`](backend/src/ziwei/format.py) 把命盤 JSON 轉成中文摘要，注入 orchestrator prompt，明確要求 LLM「以此命盤為唯一依據」。
-- **Gemini 相容處理**：`gemini-3.5-flash` 回覆為 thinking 分段（已轉純文字）；且 function-call turn 必須緊接 user / function-response turn，因此 orchestrator 首回合會將使用者訊息持久化進 state。
-- **設定載入**：`settings.py` 以絕對路徑讀取 **repo 根目錄** 的 `.env`，無論從哪個 cwd 啟動皆可。
+- **多代理人並行**：[`graph/builder.py`](backend/src/graph/builder.py) 用 fan-out/fan-in 讓三個 agent 並行；state 的 `agent_outputs` 以 `operator.add` reducer 合併並行寫入（[`graph/state.py`](backend/src/graph/state.py)）。
+- **後端格式化**：[`ziwei/format.py`](backend/src/ziwei/format.py) 把命盤 JSON 轉成中文摘要，注入各 agent prompt，明確要求「以此命盤為唯一依據」。
+- **Gemini 相容處理**：`gemini-3.5-flash` 回覆為 thinking 分段，已用 `_content_to_text` 轉純文字。
+- **設定載入**：`settings.py` 以絕對路徑讀取 **repo 根目錄** 的 `.env`；`api_server.py` 另用 `load_dotenv` 將 `.env` 載入 `os.environ`（供 LangSmith 等讀取）。
+
+---
+
+## 🔍 觀察 Multi-Agent 流程（LangSmith）
+
+可用 [LangSmith](https://smith.langchain.com) 完整觀察 graph 每一步、每次 Gemini 呼叫的 input/output、耗時與 token。
+
+1. 到 https://smith.langchain.com 註冊並取得 API key（免費）
+2. 在 `.env` 設定：
+   ```env
+   LANGCHAIN_TRACING_V2=true
+   LANGCHAIN_API_KEY=lsv2_...
+   LANGCHAIN_PROJECT=ziwei-multi-agent
+   ```
+3. 重啟後端並跑一次分析 → 到 LangSmith 專案 `ziwei-multi-agent` 查看 trace
+
+trace 會呈現完整流程樹，三個 agent 在時間軸上**重疊**，直接驗證並行：
+
+```
+researcher
+ ├─ reasoning_agent  ┐
+ ├─ domain_agent     ┤  （並行，時間軸重疊）
+ └─ creative_agent   ┘
+coordinator
+```
 
 ---
 
@@ -345,7 +387,12 @@ Full-multi-agent/
 
 ## 📝 版本記錄
 
-### v2.1.0（2026-06-06）— 當前版本
+### v2.2.0（2026-06-07）— 當前版本
+- **升級為真正的 Multi-Agent**：graph 改為 `researcher → 推理／領域／創意（並行）→ coordinator`，三位獨立 persona 的 Gemini agent 協作（取代原本單模型扮多角的 ReAct loop）。
+- **看得見的多代理人**：API 回傳新增 `agents` 欄位，前端新增可展開的「多代理人分析過程」。
+- **LangSmith 追蹤**：`api_server.py` 載入 `.env` 至 `os.environ`，設定 `LANGCHAIN_TRACING_V2=true` 即可在 LangSmith 觀察 graph。
+
+### v2.1.0（2026-06-06）
 - **新增命盤功能**：以官方 **iztro** 引擎在前端精準排盤，新增自訂主題 **十二宮命盤盤面**。
 - **全面改用 Google Gemini**：LLM 換成 `gemini-3.5-flash`、Embedding 換成 `gemini-embedding-2`，全系統只需一把金鑰。
 - **命盤驅動解盤**：前端排好的命盤 JSON 一併送後端，agent 以真實命盤解讀，後端不再爬取外部網站。

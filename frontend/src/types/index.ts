@@ -59,13 +59,22 @@ export interface AnalysisRequest {
   chart?: ZiweiChart;
 }
 
+/** 單一 agent 的個別分析輸出 */
+export interface AgentOutput {
+  role: string;   // reasoning / domain / creative
+  label: string;  // 顯示名稱，如「推理分析師」
+  content: string;
+}
+
 export interface AnalysisResponse {
   success: boolean;
   result?: string;
   error?: string;
+  agents?: AgentOutput[];
   metadata?: {
     domain_type: string;
-    iterations: number;
+    agents_used?: number;
+    iterations?: number;
     elapsed_ms: number;
   };
 }

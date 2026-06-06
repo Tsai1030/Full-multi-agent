@@ -5,6 +5,7 @@ LangGraph 各節點共享的狀態結構
 
 from __future__ import annotations
 
+import operator
 from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
@@ -28,15 +29,23 @@ class GraphState(TypedDict):
     domain_type: str                  # love / wealth / future / comprehensive
     user_question: str                # 使用者的具體問題
 
-    # ── 工具執行結果 ───────────────────────────────────────────
-    chart_data: dict[str, Any] | None          # MCP ziwei_chart 結果
-    rag_results: list[dict[str, Any]]          # RAG 搜索結果
-    search_results: list[dict[str, Any]]       # Web search 結果
+    # ── 命盤資料（前端 iztro 計算後送入）──────────────────────
+    chart_data: dict[str, Any] | None
 
-    # ── 流程控制 ───────────────────────────────────────────────
-    iterations: int                            # 當前迭代次數
-    max_iterations: int                        # 最大迭代次數
-    should_end: bool                           # 是否結束 loop
+    # ── researcher 產出的共享知識脈絡（RAG）────────────────────
+    rag_context: str
 
-    # ── 最終輸出 ───────────────────────────────────────────────
+    # ── 多代理人各自的分析輸出 ─────────────────────────────────
+    # 三個並行 agent 各自 append 一筆 {role, label, content}，
+    # 用 operator.add reducer 合併（並行寫入不衝突）。
+    agent_outputs: Annotated[list[dict[str, Any]], operator.add]
+
+    # ── 既有欄位（保留向後相容，部分已不再使用）────────────────
+    rag_results: list[dict[str, Any]]
+    search_results: list[dict[str, Any]]
+    iterations: int
+    max_iterations: int
+    should_end: bool
+
+    # ── 最終輸出（coordinator 整合後報告）──────────────────────
     final_answer: str | None
