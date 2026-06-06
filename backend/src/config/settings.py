@@ -6,26 +6,45 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# repo 根目錄的 .env（無論從哪個 cwd 啟動都讀得到）。
+# settings.py 位於 backend/src/config/settings.py → parents[3] = repo 根目錄。
+_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # 先讀 repo 根目錄 .env，再讀 cwd 的 .env（若存在則覆寫，方便本地覆蓋）
+        env_file=(str(_ROOT_ENV), ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    # ── Anthropic ──────────────────────────────────────────────
+    # ── Google Gemini (LLM) ────────────────────────────────────
+    google_api_key: str = Field("", alias="GOOGLE_API_KEY")
+    gemini_model: str = Field("gemini-3.5-flash", alias="GEMINI_MODEL")
+    gemini_max_tokens: int = Field(4096, alias="GEMINI_MAX_TOKENS")
+    gemini_temperature: float = Field(0.7, alias="GEMINI_TEMPERATURE")
+
+    # ── Embeddings ─────────────────────────────────────────────
+    # provider: "gemini" (預設) | "openai"
+    embedding_provider: str = Field("gemini", alias="EMBEDDING_PROVIDER")
+    gemini_embedding_model: str = Field(
+        "gemini-embedding-2", alias="GEMINI_EMBEDDING_MODEL"
+    )
+
+    # ── Anthropic (legacy, 已停用，保留向後相容) ───────────────
     anthropic_api_key: str = Field("", alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field("claude-haiku-4-5-20251001", alias="ANTHROPIC_MODEL")
     anthropic_max_tokens: int = Field(4096, alias="ANTHROPIC_MAX_TOKENS")
     anthropic_temperature: float = Field(0.7, alias="ANTHROPIC_TEMPERATURE")
 
-    # ── OpenAI (embeddings) ────────────────────────────────────
+    # ── OpenAI (embeddings, 備用) ──────────────────────────────
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
     openai_embedding_model: str = Field(
         "text-embedding-3-small", alias="OPENAI_EMBEDDING_MODEL"
@@ -37,7 +56,7 @@ class Settings(BaseSettings):
 
     # ── RAG ────────────────────────────────────────────────────
     rag_data_path: str = Field(
-        "C:/Users/226376/Desktop/Full-multi-agent/zi_wei_dou_shu_rag_chunks.json",
+        "../zi_wei_dou_shu_rag_chunks.json",
         alias="RAG_DATA_PATH",
     )
     rag_vector_db_path: str = Field(

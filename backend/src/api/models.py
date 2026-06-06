@@ -30,6 +30,10 @@ class AnalysisRequest(BaseModel):
         default="",
         description="使用者的具體問題（可選）",
     )
+    chart: dict[str, Any] | None = Field(
+        default=None,
+        description="前端 iztro 計算好的命盤 JSON（命宮、十二宮、星曜、四化…）",
+    )
 
 
 class AnalysisResponse(BaseModel):

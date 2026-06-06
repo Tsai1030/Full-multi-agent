@@ -38,7 +38,7 @@ async def analyze_chart(request: AnalysisRequest) -> AnalysisResponse:
             "birth_data": request.birth_data.model_dump(),
             "domain_type": request.domain_type,
             "user_question": request.user_question or f"{request.domain_type} 分析",
-            "chart_data": None,
+            "chart_data": request.chart,
             "rag_results": [],
             "search_results": [],
             "iterations": 0,
@@ -90,7 +90,9 @@ async def system_status() -> SystemStatusResponse:
         store = ZiweiVectorStore(
             persist_directory=settings.rag_vector_db_path,
             collection_name=settings.rag_collection_name,
-            openai_api_key=settings.openai_api_key,
+            api_key=settings.google_api_key,
+            embedding_model=settings.gemini_embedding_model,
+            provider=settings.embedding_provider,
         )
         rag_docs = store.count()
     except Exception:

@@ -6,10 +6,57 @@ export interface BirthData {
   birth_hour: string;
 }
 
+/** 單一星曜（iztro） */
+export interface ZiweiStar {
+  name: string;
+  type?: string;        // major / soft / tough / lucun / tianma / adjective …
+  scope?: string;       // origin / decadal / yearly …
+  brightness?: string;  // 廟 / 旺 / 得 / 利 / 平 / 不 / 陷
+  mutagen?: string;     // 祿 / 權 / 科 / 忌（生年四化）
+}
+
+/** 單一宮位（iztro） */
+export interface ZiweiPalace {
+  index: number;
+  name: string;             // 命宮 / 兄弟 / 夫妻 …
+  isBodyPalace: boolean;
+  isOriginalPalace?: boolean;
+  heavenlyStem: string;     // 天干
+  earthlyBranch: string;    // 地支
+  majorStars: ZiweiStar[];
+  minorStars: ZiweiStar[];
+  adjectiveStars: ZiweiStar[];
+  decadal?: {
+    range: [number, number];
+    heavenlyStem: string;
+    earthlyBranch: string;
+  };
+  ages?: number[];
+}
+
+/** 完整命盤（iztro 計算結果，序列化後） */
+export interface ZiweiChart {
+  gender: string;
+  solarDate: string;
+  lunarDate: string;
+  chineseDate: string;
+  time: string;
+  timeRange: string;
+  sign: string;                       // 星座
+  zodiac: string;                     // 生肖
+  soul: string;                       // 命主
+  body: string;                       // 身主
+  fiveElementsClass: string;          // 五行局
+  earthlyBranchOfSoulPalace: string;  // 命宮地支
+  earthlyBranchOfBodyPalace: string;  // 身宮地支
+  palaces: ZiweiPalace[];
+}
+
 export interface AnalysisRequest {
   birth_data: BirthData;
   domain_type: DomainType;
   user_question?: string;
+  chart?: ZiweiChart;
 }
 
 export interface AnalysisResponse {

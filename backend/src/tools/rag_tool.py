@@ -31,8 +31,9 @@ async def search_ziwei_knowledge(query: str) -> str:
         store = ZiweiVectorStore(
             persist_directory=settings.rag_vector_db_path,
             collection_name=settings.rag_collection_name,
-            openai_api_key=settings.openai_api_key,
-            embedding_model=settings.openai_embedding_model,
+            api_key=settings.google_api_key,
+            embedding_model=settings.gemini_embedding_model,
+            provider=settings.embedding_provider,
         )
         retriever = RAGRetriever(
             store,

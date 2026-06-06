@@ -2,166 +2,85 @@
 
 [![GitHub Stars](https://img.shields.io/github/stars/Tsai1030/Full-multi-agent?style=social)](https://github.com/Tsai1030/Full-multi-agent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-orange.svg)](https://langchain-ai.github.io/langgraph/)
+[![Gemini](https://img.shields.io/badge/Gemini-3.5%20Flash-8E75B2.svg)](https://ai.google.dev/)
+[![iztro](https://img.shields.io/badge/iztro-2.5-purple.svg)](https://github.com/SylarLong/iztro)
 
-> 基於 **LangGraph ReAct Loop** 的 Graph Multi-Agent 紫微斗數 AI 分析系統。
-> 結合自訂 Python MCP Server、ChromaDB RAG 知識庫與 Web Search，提供深度命理分析體驗。
+> 一套以 **真實命盤** 為基礎的紫微斗數 AI 分析系統。
+> 命盤由官方 **iztro 排盤引擎** 精準計算（不由 LLM 編造），再交給 **LangGraph multi-agent**
+> 結合 **ChromaDB RAG 知識庫** 與 **Web Search** 進行深度解盤。全系統僅需一把 **Google Gemini** 金鑰。
 
 ---
 
-## 📸 系統展示
+## ✨ 核心特色
 
-| 首頁 | 輸入資料 |
-|------|---------|
-| ![首頁畫面](./public/screenshots/首頁畫面.png) | ![輸入資料畫面](./public/screenshots/輸入資料畫面.png) |
+### 🧮 真實命盤，絕不編造
+- 命盤由 [**iztro**](https://github.com/SylarLong/iztro) 官方排盤引擎在**前端**直接計算，結果與 iztro 完全一致。
+- 完整呈現十二宮：主星（含廟旺亮度）、輔星、雜曜、**生年四化（祿權科忌）**、大限、命主／身主、五行局、身宮。
+- LLM 只負責「解讀」命盤，**不負責排盤**，從根本杜絕星曜幻覺。
 
-| 分析載入 | 分析結果 |
-|---------|---------|
-| ![分析loading](./public/screenshots/分析loading.png) | ![result](./public/screenshots/result.png) |
+### 🎨 自訂主題命盤盤面
+- 傳統 **4×4 十二宮格** 盤面，中央顯示基本命格資訊。
+- 沿用金色／星空神秘主題，四化以彩色標籤標示，響應式設計。
+
+### 🤖 LangGraph Multi-Agent（ReAct Loop）
+- `orchestrator → tools → synthesizer` 的 Graph 架構，動態決定工具呼叫順序。
+- 讀取已排好的命盤，自主查詢知識庫 / 網路，最後彙整成結構化解析報告。
+- 迭代上限保護，確保回應時間可控。
+
+### 📚 RAG 專業知識庫
+- **ChromaDB** 持久化向量庫，啟動時自動索引（idempotent）。
+- 嵌入模型使用 **Gemini Embedding**，紫微斗數知識庫（JSON chunks）。
+
+### 🌐 Web Search
+- 主要使用 **Tavily**，未設金鑰時自動 fallback 至 **DuckDuckGo**。
+
+### 🟣 單一金鑰即可運行
+- LLM（`gemini-3.5-flash`）與 Embedding（`gemini-embedding-2`）皆使用 **Google Gemini**，只需一把金鑰。
 
 ---
 
 ## 🏗️ 系統架構
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Frontend (Next.js 14)                     │
-│           TypeScript · Tailwind CSS · Framer Motion         │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP /api/analyze
-┌──────────────────────────▼──────────────────────────────────┐
-│                  FastAPI  (port 8000)                        │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │              LangGraph StateGraph                    │    │
-│  │                                                      │    │
-│  │   START → orchestrator ──┐                          │    │
-│  │               ▲          │ tool_calls?              │    │
-│  │               │ loop     ▼                          │    │
-│  │             tools ◄──────┘                          │    │
-│  │               │  max_iterations                     │    │
-│  │               ▼                                     │    │
-│  │          synthesizer → END                          │    │
-│  └──────┬───────────┬──────────┬───────────────────────┘    │
-│         │           │          │                             │
-│    web_search   rag_tool   mcp_bridge                       │
-│    (Tavily/    (ChromaDB)  (MCP Client)                     │
-│     DuckDuckGo)            │                                │
-│                    ┌───────▼───────┐                        │
-│                    │  MCP Server   │ /mcp/*                 │
-│                    │ (Sub-App)     │                        │
-│                    │ ZiweiChartTool│                        │
-│                    │ → windada.com │                        │
-│                    └───────────────┘                        │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                      Frontend (Next.js 14)                         │
+│                                                                    │
+│   出生資料表單 ──▶ iztro 排盤引擎（瀏覽器端，精準計算命盤）          │
+│        │                    │                                      │
+│        │                    ▼                                      │
+│        │            <ZiweiChart> 主題盤面（十二宮 / 四化 / 大限）   │
+│        │                                                          │
+│        └────── POST /api/analyze  { birth_data, chart } ──────┐   │
+└──────────────────────────────────────────────────────────────┼───┘
+                                                                │
+┌───────────────────────────────────────────────────────────────▼──┐
+│                       FastAPI (port 8000)                         │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                   LangGraph StateGraph                       │ │
+│  │                                                              │ │
+│  │   START → orchestrator ──┐  (命盤已注入 prompt)              │ │
+│  │               ▲          │ tool_calls?                       │ │
+│  │               │ loop     ▼                                   │ │
+│  │             tools ◄──────┘                                   │ │
+│  │               │  max_iterations                              │ │
+│  │               ▼                                              │ │
+│  │          synthesizer → END （結構化解盤報告）                │ │
+│  └──────────────┬──────────────────────┬────────────────────────┘ │
+│                 │                      │                          │
+│         search_ziwei_knowledge    web_search                     │
+│            (ChromaDB +          (Tavily / DuckDuckGo)             │
+│             Gemini Embedding)                                    │
+│                                                                  │
+│   LLM：Google Gemini（gemini-3.5-flash）via langchain-google-genai│
+└──────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## ✨ 核心特色
-
-### 🤖 LangGraph ReAct Loop
-- **Graph-based** 多智能體架構，取代傳統線性 pipeline
-- **ReAct 模式**：Reason → Act → Observe 循環，自主決策工具使用順序
-- **動態路由**：根據工具呼叫結果決定繼續 loop 或進入 synthesizer
-- **迭代上限保護**：防止無限循環，確保回應時間可控
-
-### 🛠️ 自訂 Python MCP Server
-- 完全取代舊版 Node.js MCP server
-- FastAPI sub-application，掛載於主 app 的 `/mcp` 路徑
-- `BaseMCPTool` ABC 抽象類別，支援快速擴充新工具
-- `ToolRegistry` 管理工具註冊與呼叫
-
-### 📚 RAG 知識檢索
-- **ChromaDB** 持久化向量資料庫
-- **OpenAI text-embedding-3-small** 嵌入模型
-- 啟動時自動索引（idempotent，不重複建立）
-- 紫微斗數專業知識庫（JSON chunks 格式）
-
-### 🌐 Web Search
-- 主要使用 **Tavily Search API**
-- 自動 fallback 至 **DuckDuckGo**（免費備援）
-
-### 🎨 現代化前端
-- **Next.js 14 App Router** + TypeScript
-- Canvas **StarField** 粒子動畫
-- **Framer Motion** 頁面轉場與 stagger 動畫
-- 神秘星象主題設計，全螢幕載入覆蓋效果
-
----
-
-## 📁 專案結構
-
-```
-Full-multi-agent/
-├── backend/
-│   ├── api_server.py              # FastAPI 主程式，lifespan 自動建立 RAG
-│   ├── requirements.txt
-│   ├── .env                       # 環境變數（不納入 git）
-│   └── src/
-│       ├── config/
-│       │   └── settings.py        # Pydantic-settings 單一 flat 設定
-│       ├── mcp/
-│       │   ├── server.py          # MCP FastAPI sub-app
-│       │   ├── client.py          # 非同步 HTTP MCPClient
-│       │   └── tools/
-│       │       ├── base.py        # BaseMCPTool ABC + ToolResult
-│       │       ├── registry.py    # ToolRegistry 單例
-│       │       └── ziwei.py       # ZiweiChartTool（爬取 windada.com）
-│       ├── rag/
-│       │   ├── vector_store.py    # ZiweiVectorStore（ChromaDB）
-│       │   ├── indexer.py         # RAGIndexer（首次啟動建索引）
-│       │   ├── retriever.py       # RAGRetriever（語意搜尋）
-│       │   └── embeddings.py      # OpenAI embedding provider
-│       ├── tools/
-│       │   ├── web_search.py      # @tool web_search（Tavily + DDG）
-│       │   ├── rag_tool.py        # @tool search_ziwei_knowledge
-│       │   └── mcp_bridge.py      # @tool get_ziwei_chart（→ MCP）
-│       ├── graph/
-│       │   ├── state.py           # GraphState TypedDict
-│       │   ├── nodes.py           # orchestrator / tool_node / synthesizer
-│       │   ├── edges.py           # should_continue 條件邊
-│       │   └── builder.py         # StateGraph 編譯（lru_cache 單例）
-│       └── api/
-│           ├── models.py          # Pydantic 請求/回應模型
-│           └── router.py          # /api/analyze, /api/status, /api/domains
-│
-└── frontend/
-    ├── next.config.js             # API 代理 rewrite
-    ├── tailwind.config.ts         # 自訂 cosmos/gold/mystic 色票與動畫
-    ├── src/
-    │   ├── app/
-    │   │   ├── layout.tsx         # Google Fonts、metadata
-    │   │   ├── page.tsx           # 首頁（Hero + DomainCards）
-    │   │   └── analyze/
-    │   │       └── page.tsx       # form → loading → result 狀態機
-    │   ├── components/
-    │   │   ├── StarField.tsx      # Canvas 星空粒子動畫
-    │   │   ├── CosmicBackground.tsx
-    │   │   ├── Navbar.tsx
-    │   │   ├── HeroSection.tsx    # 雙向旋轉星盤 + 展開環動畫
-    │   │   ├── DomainCards.tsx    # 四大領域卡片
-    │   │   ├── BirthDataForm.tsx  # 出生資料輸入表單
-    │   │   ├── DivinationLoader.tsx # 全螢幕占卜載入覆蓋
-    │   │   ├── ResultDisplay.tsx  # Markdown 結果展示
-    │   │   └── ui/
-    │   │       ├── Button.tsx
-    │   │       └── GoldSelect.tsx
-    │   ├── hooks/
-    │   │   └── useAnalysis.ts     # 分析狀態機 hook（AbortController）
-    │   ├── lib/
-    │   │   ├── api.ts
-    │   │   └── constants.ts
-    │   └── types/
-    │       └── index.ts
-    └── public/
-        ├── background.png
-        ├── icon.png
-        ├── icon2.png
-        └── screenshots/
-```
+> **設計重點**：命盤計算在前端用 iztro 完成（單一可信來源），同一份命盤 JSON 同時用於
+> 「畫盤」與「送後端解盤」，後端不再爬取外部網站，準確且穩定。
 
 ---
 
@@ -169,12 +88,13 @@ Full-multi-agent/
 
 ### 環境需求
 
-| 工具 | 版本 |
-|------|------|
-| Python | 3.11+ |
-| Node.js | 18+ |
-| uv | 最新版 |
-| Yarn | 1.x |
+| 工具 | 版本 | 說明 |
+|------|------|------|
+| Python | 3.10+ | 後端 |
+| [uv](https://docs.astral.sh/uv/) | 最新版 | Python 套件 / 環境管理 |
+| Node.js | 18+ | 前端 |
+| Yarn | 1.x | 前端套件管理 |
+| Google Gemini API Key | — | [免費取得](https://aistudio.google.com/apikey) |
 
 ### 1. 複製專案
 
@@ -183,113 +103,123 @@ git clone https://github.com/Tsai1030/Full-multi-agent.git
 cd Full-multi-agent
 ```
 
-### 2. 後端設定
+### 2. 設定環境變數
+
+複製範例檔並填入你的 Gemini 金鑰（`.env` 已被 git 忽略，不會上傳）：
+
+```bash
+cp .env.example .env
+```
+
+`.env` 至少需填：
+
+```env
+GOOGLE_API_KEY=你的_gemini_api_key
+```
+
+其餘設定（模型名稱、RAG 路徑、CORS 等）已有合理預設值，詳見 [`.env.example`](.env.example)。
+
+### 3. 啟動後端（uv）
 
 ```bash
 cd backend
-
-# 建立虛擬環境（使用 uv 管理）
-uv venv --python 3.11 --python-preference managed
-.venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # macOS/Linux
-
-# 安裝依賴
-uv pip install -r requirements.txt
+uv sync                       # 建立 .venv 並安裝所有依賴
+uv run python api_server.py   # 首次啟動會自動建立 RAG 向量庫
 ```
 
-建立 `.env` 檔案：
+後端啟動於 `http://localhost:8000`。
 
-```env
-# 必填
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-proj-...
-ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+### 4. 啟動前端（yarn）
 
-# 選填（Web Search）
-TAVILY_API_KEY=tvly-...
-
-# RAG 資料路徑
-RAG_DATA_PATH=C:/path/to/zi_wei_dou_shu_rag_chunks.json
-
-# 服務設定（預設值）
-APP_HOST=0.0.0.0
-APP_PORT=8000
-APP_DEBUG=false
-CORS_ORIGINS=http://localhost:3000
-```
-
-啟動後端（首次啟動會自動建立 RAG 向量庫）：
-
-```bash
-python api_server.py
-```
-
-### 3. 前端設定
+另開一個終端：
 
 ```bash
 cd frontend
-
-# 安裝依賴
 yarn install
-
-# 啟動開發伺服器
 yarn dev
 ```
 
-### 4. 訪問系統
+前端啟動於 `http://localhost:3000`。
+
+### 5. 開始使用
 
 | 服務 | URL |
 |------|-----|
 | 前端 | http://localhost:3000 |
-| 後端 API | http://localhost:8000 |
+| 命盤分析 | http://localhost:3000/analyze |
 | Swagger UI | http://localhost:8000/docs |
-| MCP Tools | http://localhost:8000/mcp/tools |
+| 健康檢查 | http://localhost:8000/health |
 
 ---
 
 ## 🔮 使用流程
 
-1. 前往 http://localhost:3000
-2. 點擊「開始推算」或選擇分析領域
-3. 填入出生資料：性別、年月日、時辰
-4. 選擇分析領域：愛情 / 財富 / 未來 / 綜合
-5. 輸入選填問題（針對特定疑問）
-6. 等待 AI 分析（LangGraph ReAct loop 執行中）
-7. 查看深度命理分析結果
+1. 前往 `http://localhost:3000/analyze`
+2. 填入出生資料：性別、西元年月日、時辰（地支）
+3. 選擇分析領域：愛情 / 財富 / 未來 / 綜合
+4. （選填）輸入具體問題
+5. 送出後，前端用 **iztro 即時排盤** 並顯示**命盤盤面**
+6. 命盤同步送至後端，**LangGraph multi-agent** 進行解盤
+7. 查看「命盤盤面 + AI 深度解析報告」
 
 ### 分析領域
 
 | 領域 | 說明 |
 |------|------|
-| 💕 愛情感情 | 桃花運、感情運勢、婚姻分析 |
-| 💰 財富事業 | 財運分析、事業發展、職業規劃 |
-| 🔮 未來運勢 | 大限流年、人生規劃、趨勢預測 |
-| 🌟 綜合分析 | 全方位命盤解析、整體運勢 |
+| 💕 愛情感情 | 桃花運、夫妻宮、感情運勢與正緣分析 |
+| 💰 財富事業 | 財帛宮、官祿宮、求財方位與事業契機 |
+| 🔮 未來運勢 | 大限流年、人生關鍵時機與趨勢 |
+| 🌟 綜合分析 | 全方位十二宮整合解析 |
 
 ---
 
-## ⚙️ 進階設定
+## 📁 專案結構
 
-### Graph 參數
-
-```env
-GRAPH_MAX_ITERATIONS=6     # ReAct loop 最大迭代次數
-GRAPH_RECURSION_LIMIT=25   # LangGraph recursion limit
 ```
-
-### RAG 參數
-
-```env
-RAG_TOP_K=5                # 語意搜尋返回結果數
-RAG_MIN_SCORE=0.3          # 最低相似度門檻
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-```
-
-### MCP 命盤爬蟲
-
-```env
-ZIWEI_WEBSITE_URL=https://fate.windada.com/cgi-bin/fate
-MCP_REQUEST_TIMEOUT=30
+Full-multi-agent/
+├── .env.example                  # 環境變數範例（複製為 .env）
+├── zi_wei_dou_shu_rag_chunks.json # RAG 知識庫資料（73 chunks）
+│
+├── backend/
+│   ├── pyproject.toml            # uv 專案定義（Gemini + LangGraph + RAG）
+│   ├── uv.lock
+│   ├── api_server.py             # FastAPI 主程式，lifespan 自動建 RAG
+│   └── src/
+│       ├── config/settings.py    # Pydantic 設定（讀 repo 根目錄 .env）
+│       ├── ziwei/
+│       │   └── format.py         # 命盤 JSON → 中文摘要（餵給 agent）
+│       ├── graph/
+│       │   ├── state.py          # GraphState（含 chart_data）
+│       │   ├── nodes.py          # orchestrator / tool_node / synthesizer（Gemini）
+│       │   ├── edges.py          # should_continue 條件路由
+│       │   └── builder.py        # StateGraph 編譯（lru_cache 單例）
+│       ├── tools/
+│       │   ├── rag_tool.py       # @tool search_ziwei_knowledge
+│       │   └── web_search.py     # @tool web_search（Tavily + DDG）
+│       ├── rag/
+│       │   ├── vector_store.py   # ChromaDB（依 provider 選 embedding）
+│       │   ├── embeddings.py     # Gemini / OpenAI embedding provider
+│       │   ├── indexer.py        # 首次啟動建索引
+│       │   └── retriever.py      # 語意搜尋 + 格式化
+│       ├── mcp/                  # 自訂 Python MCP server（保留，命盤已改前端）
+│       └── api/
+│           ├── models.py         # 請求/回應模型（AnalysisRequest.chart）
+│           └── router.py         # /api/analyze, /api/status, /api/domains
+│
+└── frontend/
+    ├── tailwind.config.ts        # cosmos / gold / mystic 色票與動畫
+    └── src/
+        ├── app/analyze/page.tsx  # form → loading → result 狀態機
+        ├── components/
+        │   ├── ZiweiChart.tsx    # ★ 自訂主題命盤盤面（4×4 十二宮）
+        │   ├── BirthDataForm.tsx
+        │   ├── ResultDisplay.tsx
+        │   └── ...
+        ├── hooks/useAnalysis.ts  # 排盤 + 呼叫後端的狀態機 hook
+        ├── lib/
+        │   ├── ziwei.ts          # ★ iztro 排盤封裝（computeChart）
+        │   └── api.ts
+        └── types/index.ts        # BirthData / ZiweiChart / Palace / Star
 ```
 
 ---
@@ -303,121 +233,100 @@ MCP_REQUEST_TIMEOUT=30
   "birth_data": {
     "gender": "男",
     "birth_year": 1990,
-    "birth_month": 6,
-    "birth_day": 15,
+    "birth_month": 5,
+    "birth_day": 20,
     "birth_hour": "午"
   },
   "domain_type": "comprehensive",
-  "question": "今年事業運如何？"
+  "user_question": "今年事業運如何？",
+  "chart": { "...": "前端 iztro 計算好的命盤 JSON（十二宮 / 星曜 / 四化）" }
 }
 ```
 
-### `GET /api/status`
+> `chart` 由前端排盤後附上；後端據此解盤，不會自行排盤。
 
-回傳系統狀態（RAG 文件數、MCP 工具清單等）
+回應：
 
-### `GET /mcp/tools`
+```json
+{
+  "success": true,
+  "result": "## 命盤基本格局\n...",
+  "metadata": { "domain_type": "comprehensive", "iterations": 6, "elapsed_ms": 18234 }
+}
+```
 
-列出所有已註冊 MCP 工具
-
-### `POST /mcp/tools/call`
-
-直接呼叫 MCP 工具
+| 端點 | 說明 |
+|------|------|
+| `POST /api/analyze` | 命盤解析（主要端點） |
+| `GET /api/status` | 系統狀態（RAG 文件數、工具清單） |
+| `GET /api/domains` | 四大分析領域 |
+| `GET /api/birth-hours` | 十二時辰對照 |
+| `GET /health` | 健康檢查 |
 
 ---
 
-## 🛠️ 擴充開發
+## ⚙️ 設定說明
 
-### 新增 MCP 工具
+所有設定皆可於 `.env` 覆寫（鍵名見 [`.env.example`](.env.example)）。
 
-```python
-# backend/src/mcp/tools/my_tool.py
-from .base import BaseMCPTool, ToolResult
+| 變數 | 預設 | 說明 |
+|------|------|------|
+| `GOOGLE_API_KEY` | — | **必填**，Gemini 金鑰 |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | multi-agent 使用的 LLM |
+| `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | RAG 嵌入模型 |
+| `EMBEDDING_PROVIDER` | `gemini` | `gemini` 或 `openai` |
+| `TAVILY_API_KEY` | 空 | 留空則用 DuckDuckGo |
+| `GRAPH_MAX_ITERATIONS` | `6` | ReAct loop 最大迭代次數 |
+| `RAG_TOP_K` / `RAG_MIN_SCORE` | `5` / `0.3` | RAG 檢索參數 |
+| `APP_CORS_ORIGINS` | `http://localhost:3000` | 前端來源白名單 |
 
-class MyTool(BaseMCPTool):
-    name = "my_tool"
-    description = "工具描述"
-    input_schema = { ... }
+> **時辰對應**：地支 `子→0 … 亥→11`（`子時` 取 `00:00–01:00` 早子，與一般 iztro 應用一致）。
 
-    async def _execute(self, **kwargs) -> dict:
-        # 實作邏輯
-        return {"result": ...}
-```
+---
 
-在 `server.py` 的 `create_mcp_app()` 中 `registry.register(MyTool(...))` 即可。
+## 🧩 技術細節
 
-### 新增 Agent 工具
-
-```python
-# backend/src/tools/my_agent_tool.py
-from langchain_core.tools import tool
-
-@tool
-async def my_agent_tool(param: str) -> str:
-    """工具說明（LLM 讀取此 docstring 決定是否使用）"""
-    ...
-    return result
-```
-
-在 `graph/nodes.py` 的 `AGENT_TOOLS` 列表加入即可。
+- **命盤一致性**：前端 [`lib/ziwei.ts`](frontend/src/lib/ziwei.ts) 呼叫 `astro.bySolar(date, timeIndex, gender, true, 'zh-TW')`，序列化後同時供 [`ZiweiChart.tsx`](frontend/src/components/ZiweiChart.tsx) 畫盤與後端解盤。
+- **後端格式化**：[`ziwei/format.py`](backend/src/ziwei/format.py) 把命盤 JSON 轉成中文摘要，注入 orchestrator prompt，明確要求 LLM「以此命盤為唯一依據」。
+- **Gemini 相容處理**：`gemini-3.5-flash` 回覆為 thinking 分段（已轉純文字）；且 function-call turn 必須緊接 user / function-response turn，因此 orchestrator 首回合會將使用者訊息持久化進 state。
+- **設定載入**：`settings.py` 以絕對路徑讀取 **repo 根目錄** 的 `.env`，無論從哪個 cwd 啟動皆可。
 
 ---
 
 ## 🐛 常見問題
 
-| 問題 | 原因 | 解決方式 |
-|------|------|---------|
-| `model: Claude Haiku 4.5` 404 | 模型 ID 格式錯誤 | 使用 `claude-haiku-4-5-20251001` |
-| MCP 404 `/tools/call` | URL 少了 `/mcp` 前綴 | 確認 `mcp_base_url` 含 `/mcp` |
-| 命盤解析亂碼 | 網站編碼非標準 big5 | 系統已自動嘗試 cp950/big5-hkscs |
-| RAG 無法建立 | `RAG_DATA_PATH` 路徑錯誤 | 確認 JSON 檔案路徑正確 |
-| CORS 錯誤 | 前端 port 未加入白名單 | 在 `CORS_ORIGINS` 加入前端位址 |
+| 問題 | 解決方式 |
+|------|---------|
+| `RAG init failed: API key required` | `.env` 未填 `GOOGLE_API_KEY`，或 `.env` 不在 repo 根目錄 |
+| 命盤日期錯誤 / 排盤失敗 | 確認出生年月日為有效國曆日期 |
+| 前端連不到後端 | 確認後端已啟動於 `:8000`，且 `APP_CORS_ORIGINS` 含前端位址 |
+| 分析很慢 | 正常，multi-agent 會多輪查詢知識庫；可調低 `GRAPH_MAX_ITERATIONS` |
+| 想換模型 | 改 `.env` 的 `GEMINI_MODEL` / `GEMINI_EMBEDDING_MODEL` 即可 |
 
 ---
 
 ## 📦 技術棧
 
-**Backend**
+**Backend** — FastAPI · LangGraph · langchain-google-genai（Gemini）· ChromaDB · Tavily · Loguru · pydantic-settings · uv
 
-| 套件 | 用途 |
-|------|------|
-| FastAPI 0.115+ | Web framework + MCP sub-app |
-| LangGraph 0.2+ | Graph multi-agent 框架 |
-| LangChain Anthropic | Claude 模型整合 |
-| ChromaDB 0.5+ | 向量資料庫 |
-| httpx | 非同步 HTTP（爬蟲 + MCP client）|
-| BeautifulSoup4 | HTML 解析 |
-| Tavily Python | Web search |
-| Loguru | 結構化日誌 |
-| pydantic-settings | 環境變數管理 |
-| uv | Python 套件管理 |
-
-**Frontend**
-
-| 套件 | 用途 |
-|------|------|
-| Next.js 14 | App Router SSR 框架 |
-| TypeScript | 型別安全 |
-| Tailwind CSS | Utility-first 樣式 |
-| Framer Motion | 動畫系統 |
-| Yarn | 套件管理 |
+**Frontend** — Next.js 14（App Router）· TypeScript · Tailwind CSS · Framer Motion · **iztro** · Yarn
 
 ---
 
 ## 📝 版本記錄
 
-### v2.0.0（2026-04-29）— 當前版本
+### v2.1.0（2026-06-06）— 當前版本
+- **新增命盤功能**：以官方 **iztro** 引擎在前端精準排盤，新增自訂主題 **十二宮命盤盤面**。
+- **全面改用 Google Gemini**：LLM 換成 `gemini-3.5-flash`、Embedding 換成 `gemini-embedding-2`，全系統只需一把金鑰。
+- **命盤驅動解盤**：前端排好的命盤 JSON 一併送後端，agent 以真實命盤解讀，後端不再爬取外部網站。
+- **uv 化後端**：新增 `pyproject.toml` / `uv.lock`，以 `uv sync` / `uv run` 管理。
+- **設定修正**：`.env` 改由 repo 根目錄絕對路徑載入，修正從 `backend/` 啟動時金鑰讀不到的問題。
 
-- **架構全面重寫**：LangGraph StateGraph 取代舊版 coordinator 架構
-- **自訂 Python MCP Server**：完全取代 Node.js MCP server
-- **前端全面重寫**：Next.js 14 + TypeScript + Tailwind，神秘星象主題
-- **ReAct Loop**：orchestrator → tools → synthesizer 動態路由
-- **RAG 自動索引**：首次啟動自動建立向量庫，重啟不重複建立
-- **編碼修復**：cp950 多重 fallback，解決命盤亂碼問題
+### v2.0.0（2026-04-29）
+- 架構全面重寫：LangGraph StateGraph、自訂 Python MCP Server、Next.js 14 前端。
 
 ### v1.x（2025-07）
-
-- 初始版本：Multi-Agent coordinator + Node.js MCP + React CRA
+- 初始版本：Multi-Agent coordinator + Node.js MCP + React CRA。
 
 ---
 

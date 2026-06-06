@@ -7,13 +7,14 @@ import Navbar from "@/components/Navbar";
 import BirthDataForm from "@/components/BirthDataForm";
 import DivinationLoader from "@/components/DivinationLoader";
 import ResultDisplay from "@/components/ResultDisplay";
+import ZiweiChart from "@/components/ZiweiChart";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import type { DomainType } from "@/types";
 
 function AnalyzePage() {
   const params = useSearchParams();
   const initialDomain = (params.get("domain") as DomainType) || "comprehensive";
-  const { stage, result, error, submit, reset } = useAnalysis();
+  const { stage, result, chart, error, submit, reset } = useAnalysis();
 
   return (
     <main className="relative min-h-screen">
@@ -74,8 +75,9 @@ function AnalyzePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-full flex flex-col items-center"
+              className="w-full flex flex-col items-center gap-10"
             >
+              {chart && <ZiweiChart chart={chart} />}
               <ResultDisplay result={result} onReset={reset} />
             </motion.div>
           )}

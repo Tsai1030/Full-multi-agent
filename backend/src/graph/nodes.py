@@ -13,26 +13,34 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode
 from loguru import logger
 
 from .state import GraphState
-from ..tools import get_ziwei_chart, search_ziwei_knowledge, web_search
+from ..tools import search_ziwei_knowledge, web_search
+from ..ziwei import format_chart_for_llm
 
 # ── 工具清單（供 ToolNode 與 LLM 使用）────────────────────────
-AGENT_TOOLS = [get_ziwei_chart, search_ziwei_knowledge, web_search]
+# 命盤已由前端 iztro 計算並隨請求送入 state，故不再需要取盤工具，
+# orchestrator 只需查詢知識庫 / 網路補充資訊。
+AGENT_TOOLS = [search_ziwei_knowledge, web_search]
 
 
-def _get_llm(with_tools: bool = True) -> ChatAnthropic:
+def _get_llm(with_tools: bool = True) -> ChatGoogleGenerativeAI:
     from ..config.settings import get_settings
     s = get_settings()
-    llm = ChatAnthropic(
-        model=s.anthropic_model,
-        api_key=s.anthropic_api_key,
-        max_tokens=s.anthropic_max_tokens,
-        temperature=s.anthropic_temperature,
+    llm = ChatGoogleGenerativeAI(
+        model=s.gemini_model,
+        google_api_key=s.google_api_key,
+        max_output_tokens=s.gemini_max_tokens,
+        temperature=s.gemini_temperature,
     )
     return llm.bind_tools(AGENT_TOOLS) if with_tools else llm
 
@@ -42,14 +50,16 @@ def _get_llm(with_tools: bool = True) -> ChatAnthropic:
 ORCHESTRATOR_SYSTEM = """\
 你是一個紫微斗數命理分析系統的 AI 協調者。
 
+命盤已由系統（iztro 排盤引擎）精準計算完成，並附在使用者訊息中，
+你不需要、也不應該自行排盤或編造星曜，請完全以附上的命盤為準。
+
 你擁有以下工具：
-1. get_ziwei_chart    - 取得紫微斗數命盤（必須第一步執行）
-2. search_ziwei_knowledge - 搜索紫微斗數知識庫（RAG）
-3. web_search         - 搜索網路上的最新資訊
+1. search_ziwei_knowledge - 搜索紫微斗數知識庫（RAG）
+2. web_search             - 搜索網路上的最新資訊
 
 分析流程：
-1. 先呼叫 get_ziwei_chart 取得命盤
-2. 用 search_ziwei_knowledge 查詢命盤中主要星曜的涵義
+1. 先閱讀附上的命盤，找出命宮主星、身宮、五行局與請求領域相關的宮位
+2. 用 search_ziwei_knowledge 查詢命盤中主要星曜 / 宮位 / 四化的涵義
 3. 視需要用 web_search 補充運勢資訊
 4. 當你蒐集到足夠資訊後，回覆「分析完成，我已準備好撰寫最終報告。」
 
@@ -59,35 +69,45 @@ ORCHESTRATOR_SYSTEM = """\
 
 async def orchestrator_node(state: GraphState) -> dict[str, Any]:
     """
-    主控節點：使用 Claude 決定下一步要呼叫哪個工具。
-    當 Claude 認為資料充足時停止呼叫工具（不再帶 tool_calls）。
+    主控節點：使用 LLM 決定下一步要呼叫哪個工具。
+    當 LLM 認為資料充足時停止呼叫工具（不再帶 tool_calls）。
+
+    注意：首次進入時必須把使用者訊息（含命盤）持久化進 state，
+    否則之後的回合會以「model function_call」開頭，
+    Gemini 會拒絕（function call 必須緊接在 user / function_response 之後）。
     """
     logger.info(f"[orchestrator] iteration={state['iterations']}")
 
-    # 首次進入，建構初始訊息
-    if not state["messages"]:
+    history = list(state["messages"])
+    new_messages: list[BaseMessage] = []
+
+    # 首次進入：建構並持久化使用者訊息（含命盤）
+    if not history:
         birth = state["birth_data"]
+        chart_text = format_chart_for_llm(state.get("chart_data"))
         intro = (
             f"請分析此命盤：\n"
             f"- 性別：{birth.get('gender')}\n"
             f"- 出生：{birth.get('birth_year')}年{birth.get('birth_month')}月"
             f"{birth.get('birth_day')}日 {birth.get('birth_hour')}時\n"
             f"- 分析領域：{state['domain_type']}\n"
-            f"- 問題：{state.get('user_question', '整體命盤解析')}"
+            f"- 問題：{state.get('user_question', '整體命盤解析')}\n\n"
+            f"以下是系統排好的命盤，請以此為唯一依據：\n\n"
+            f"{chart_text}"
         )
-        initial_messages = [
-            SystemMessage(content=ORCHESTRATOR_SYSTEM),
-            HumanMessage(content=intro),
-        ]
-    else:
-        initial_messages = [SystemMessage(content=ORCHESTRATOR_SYSTEM)]
+        human = HumanMessage(content=intro)
+        new_messages.append(human)
+        history = [human]
 
     llm = _get_llm(with_tools=True)
-    messages_to_send = initial_messages if not state["messages"] else state["messages"]
-    response: AIMessage = await llm.ainvoke(messages_to_send)
+    # SystemMessage 每次都帶（langchain-google-genai 會轉成 system_instruction，不入歷史）
+    response: AIMessage = await llm.ainvoke(
+        [SystemMessage(content=ORCHESTRATOR_SYSTEM), *history]
+    )
+    new_messages.append(response)
 
     return {
-        "messages": [response],
+        "messages": new_messages,
         "iterations": state["iterations"] + 1,
     }
 
@@ -142,13 +162,34 @@ async def synthesizer_node(state: GraphState) -> dict[str, Any]:
     response: AIMessage = await llm.ainvoke(messages)
 
     return {
-        "final_answer": response.content,
+        "final_answer": _content_to_text(response.content),
         "messages": [response],
         "should_end": True,
     }
 
 
 # ── helpers ───────────────────────────────────────────────────
+
+def _content_to_text(content: Any) -> str:
+    """
+    把 LLM 回覆內容統一轉成純文字。
+    Gemini 3.x（含 thinking）回傳的 content 可能是 list of parts，
+    每個 part 為 {'type': 'text', 'text': '...'} 或字串。
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for p in content:
+            if isinstance(p, str):
+                parts.append(p)
+            elif isinstance(p, dict):
+                # 只取文字部分，忽略 thinking signature 等
+                if p.get("type") in (None, "text") and p.get("text"):
+                    parts.append(str(p["text"]))
+        return "".join(parts)
+    return str(content) if content is not None else ""
+
 
 def _build_tool_summary(state: GraphState) -> str:
     """從 messages 中提取工具呼叫結果摘要"""

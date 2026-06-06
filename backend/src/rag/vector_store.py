@@ -9,7 +9,6 @@ import uuid
 from typing import Any
 
 import chromadb
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 from loguru import logger
 
 
@@ -20,19 +19,26 @@ class ZiweiVectorStore:
     chunk document 結構：
         content  : str           - 原始文字（embedding_text 欄位）
         metadata : dict          - chunk_id, level, topic, keywords…
+
+    embedding provider 由設定決定（預設 gemini），可切換 openai。
     """
 
     def __init__(
         self,
         persist_directory: str,
         collection_name: str,
-        openai_api_key: str,
-        embedding_model: str = "text-embedding-3-small",
+        api_key: str | None = None,
+        embedding_model: str | None = None,
+        provider: str = "gemini",
+        # 向後相容舊呼叫（openai_api_key=...）
+        openai_api_key: str | None = None,
     ) -> None:
         self._collection_name = collection_name
         self._client = chromadb.PersistentClient(path=persist_directory)
-        self._ef = OpenAIEmbeddingFunction(
-            api_key=openai_api_key, model_name=embedding_model
+        self._ef = self._build_embedding_fn(
+            provider=provider,
+            api_key=api_key or openai_api_key or "",
+            embedding_model=embedding_model,
         )
         self._collection = self._client.get_or_create_collection(
             name=collection_name,
@@ -43,6 +49,32 @@ class ZiweiVectorStore:
             f"VectorStore ready: '{collection_name}' "
             f"({self._collection.count()} docs)"
         )
+
+    # ── embedding function ─────────────────────────────────────
+
+    @staticmethod
+    def _build_embedding_fn(
+        provider: str, api_key: str, embedding_model: str | None
+    ) -> Any:
+        """依 provider 建立 chromadb 相容的 embedding function"""
+        provider = (provider or "gemini").lower()
+
+        if provider == "openai":
+            from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+
+            return OpenAIEmbeddingFunction(
+                api_key=api_key,
+                model_name=embedding_model or "text-embedding-3-small",
+            )
+
+        # 預設：Gemini embedding
+        from .embeddings import GeminiEmbeddingProvider
+
+        provider_obj = GeminiEmbeddingProvider(
+            api_key=api_key,
+            model=embedding_model or "gemini-embedding-2",
+        )
+        return provider_obj.as_chromadb_fn()
 
     # ── write ──────────────────────────────────────────────────
 
