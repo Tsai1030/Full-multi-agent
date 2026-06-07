@@ -90,3 +90,53 @@ export interface Domain {
 }
 
 export type AnalysisStage = "form" | "loading" | "result";
+
+// ── Auth ─────────────────────────────────────────────────────
+export interface User {
+  id: string;
+  email: string;
+  display_name: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+// ── Chart Profile ────────────────────────────────────────────
+export interface ChartProfile {
+  id: string;
+  label: string;
+  relation: string;
+  gender: string;
+  birth_year: number;
+  birth_month: number;
+  birth_day: number;
+  birth_hour: string;
+  chart: ZiweiChart;
+  created_at: string;
+}
+
+export interface ProfileCreate {
+  label: string;
+  relation?: string;
+  birth_data: BirthData;
+  chart: ZiweiChart;
+}
+
+// ── Chat（與大師對談）────────────────────────────────────────
+export interface ChatSession {
+  id: string;
+  profile_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "master";
+  content: string;
+  created_at: string;
+}

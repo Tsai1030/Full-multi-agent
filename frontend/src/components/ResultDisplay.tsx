@@ -1,12 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
-import type { AnalysisResponse, AgentOutput } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { profileApi, ApiError } from "@/lib/api";
+import type { AnalysisResponse, AgentOutput, BirthData, ZiweiChart } from "@/types";
 
 interface ResultDisplayProps {
   result: AnalysisResponse;
+  chart?: ZiweiChart | null;
+  birthData?: BirthData | null;
   onReset: () => void;
 }
 
@@ -106,7 +111,97 @@ const item = {
   show:   { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
 };
 
-export default function ResultDisplay({ result, onReset }: ResultDisplayProps) {
+function MasterActions({
+  chart,
+  birthData,
+}: {
+  chart: ZiweiChart;
+  birthData: BirthData;
+}) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [busy, setBusy] = useState<"save" | "ask" | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const ensureProfile = async (): Promise<string> => {
+    if (savedId) return savedId;
+    const label = `命盤 · ${birthData.birth_year}/${birthData.birth_month}/${birthData.birth_day}`;
+    const profile = await profileApi.create({
+      label,
+      relation: "self",
+      birth_data: birthData,
+      chart,
+    });
+    setSavedId(profile.id);
+    return profile.id;
+  };
+
+  const requireLogin = () => {
+    router.push("/login?redirect=/analyze");
+  };
+
+  const handleSave = async () => {
+    if (!user) return requireLogin();
+    setBusy("save");
+    setMsg(null);
+    try {
+      await ensureProfile();
+      setMsg({ type: "ok", text: "命盤已儲存至「我的命盤」" });
+    } catch (e) {
+      setMsg({ type: "err", text: e instanceof ApiError ? e.message : "儲存失敗，請稍後再試" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleAsk = async () => {
+    if (!user) return requireLogin();
+    setBusy("ask");
+    setMsg(null);
+    try {
+      const id = await ensureProfile();
+      router.push(`/master/${id}`);
+    } catch (e) {
+      setMsg({ type: "err", text: e instanceof ApiError ? e.message : "無法開啟對談，請稍後再試" });
+      setBusy(null);
+    }
+  };
+
+  return (
+    <motion.div variants={item} className="card-gold rounded-3xl p-6 sm:p-8 mb-6 text-center">
+      <p className="text-xs tracking-[0.35em] text-gold-500 uppercase mb-1">下一步</p>
+      <h3 className="font-serif text-lg font-bold text-parchment mb-1">向大師請教</h3>
+      <p className="text-xs text-parchment-muted mb-5">
+        {user ? "儲存此命盤，並針對你的疑問與大師深入對談" : "登入後即可儲存命盤、與大師對談"}
+      </p>
+
+      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <Button variant="ghost" size="md" onClick={handleSave} loading={busy === "save"} disabled={busy !== null}>
+          {savedId ? "✓ 已儲存" : "💾 儲存命盤"}
+        </Button>
+        <Button variant="gold" size="md" onClick={handleAsk} loading={busy === "ask"} disabled={busy !== null}>
+          🔮 與大師詢問
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {msg && (
+          <motion.p
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`mt-4 text-sm ${msg.type === "ok" ? "text-emerald-300" : "text-red-400"}`}
+          >
+            {msg.text}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+export default function ResultDisplay({ result, chart, birthData, onReset }: ResultDisplayProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,6 +254,9 @@ export default function ResultDisplay({ result, onReset }: ResultDisplayProps) {
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </motion.div>
+
+      {/* Master CTA：儲存命盤 / 與大師詢問 */}
+      {chart && birthData && <MasterActions chart={chart} birthData={birthData} />}
 
       {/* Per-agent process (collapsible) */}
       {result.agents && result.agents.length > 0 && (

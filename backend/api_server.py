@@ -23,6 +23,9 @@ from loguru import logger
 
 from src.config.settings import get_settings
 from src.api.router import api_router
+from src.api.auth_router import auth_router
+from src.api.profile_router import profile_router
+from src.api.chat_router import chat_router
 from src.mcp.server import create_mcp_app
 
 
@@ -34,7 +37,10 @@ def create_app() -> FastAPI:
         # ── startup ───────────────────────────────────────────
         await _init_rag(settings)
         yield
-        # ── shutdown（可在此清理資源）─────────────────────────
+        # ── shutdown ──────────────────────────────────────────
+        from src.db.session import get_engine
+
+        await get_engine().dispose()
 
     app = FastAPI(
         title="紫微斗數 Multi-Agent AI 系統",
@@ -59,6 +65,9 @@ def create_app() -> FastAPI:
     app.mount("/mcp", mcp_app)
 
     app.include_router(api_router)
+    app.include_router(auth_router)
+    app.include_router(profile_router)
+    app.include_router(chat_router)
 
     # ── 基本路由 ──────────────────────────────────────────────
     @app.get("/")

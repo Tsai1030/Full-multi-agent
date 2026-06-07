@@ -80,12 +80,28 @@ class Settings(BaseSettings):
     graph_max_iterations: int = Field(6, alias="GRAPH_MAX_ITERATIONS")
     graph_recursion_limit: int = Field(25, alias="GRAPH_RECURSION_LIMIT")
 
+    # ── Database (PostgreSQL) ──────────────────────────────────
+    database_url: str = Field(
+        "postgresql+asyncpg://ziwei:ziwei_dev_pw@localhost:5432/ziwei",
+        alias="DATABASE_URL",
+    )
+
+    # ── Auth / JWT ─────────────────────────────────────────────
+    jwt_secret_key: str = Field("change-me-in-production", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+    cookie_secure: bool = Field(False, alias="COOKIE_SECURE")
+    cookie_samesite: str = Field("lax", alias="COOKIE_SAMESITE")
+    refresh_cookie_name: str = Field("ziwei_refresh", alias="REFRESH_COOKIE_NAME")
+
     # ── App ────────────────────────────────────────────────────
     app_host: str = Field("0.0.0.0", alias="APP_HOST")
     app_port: int = Field(8000, alias="APP_PORT")
     app_debug: bool = Field(False, alias="APP_DEBUG")
     app_log_level: str = Field("INFO", alias="APP_LOG_LEVEL")
-    app_cors_origins: str = Field("*", alias="APP_CORS_ORIGINS")
+    # cookie 認證需明確來源（不能用 "*"，瀏覽器會拒絕帶 credentials）
+    app_cors_origins: str = Field("http://localhost:3000", alias="APP_CORS_ORIGINS")
 
     # ── helpers ────────────────────────────────────────────────
     @property

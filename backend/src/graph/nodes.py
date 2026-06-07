@@ -16,27 +16,16 @@ from __future__ import annotations
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from loguru import logger
 
 from .state import GraphState
 from ..tools import search_ziwei_knowledge, web_search
+from ..utils.llm import content_to_text as _content_to_text
+from ..utils.llm import get_gemini as _get_llm
 from ..ziwei import format_chart_for_llm
 
 # 供 /api/status 列出（researcher 內部使用知識庫；web_search 視需要）
 AGENT_TOOLS = [search_ziwei_knowledge, web_search]
-
-
-def _get_llm() -> ChatGoogleGenerativeAI:
-    from ..config.settings import get_settings
-
-    s = get_settings()
-    return ChatGoogleGenerativeAI(
-        model=s.gemini_model,
-        google_api_key=s.google_api_key,
-        max_output_tokens=s.gemini_max_tokens,
-        temperature=s.gemini_temperature,
-    )
 
 
 # ── persona 系統提示 ──────────────────────────────────────────
@@ -118,21 +107,6 @@ COORDINATOR_PERSONA = """\
 
 
 # ── helpers ───────────────────────────────────────────────────
-
-def _content_to_text(content: Any) -> str:
-    """把 LLM 回覆統一轉純文字（Gemini 3.x 可能回 list of parts）。"""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for p in content:
-            if isinstance(p, str):
-                parts.append(p)
-            elif isinstance(p, dict) and p.get("type") in (None, "text") and p.get("text"):
-                parts.append(str(p["text"]))
-        return "".join(parts)
-    return str(content) if content is not None else ""
-
 
 def _ming_gong_major_stars(chart: dict[str, Any] | None) -> list[str]:
     """取命宮主星名稱（供 researcher 組查詢）。"""

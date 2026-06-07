@@ -6,6 +6,7 @@ import type {
   AnalysisRequest,
   AnalysisResponse,
   AnalysisStage,
+  BirthData,
   ZiweiChart,
 } from "@/types";
 
@@ -13,6 +14,7 @@ interface UseAnalysisReturn {
   stage: AnalysisStage;
   result: AnalysisResponse | null;
   chart: ZiweiChart | null;
+  birthData: BirthData | null;
   error: string | null;
   submit: (req: AnalysisRequest) => Promise<void>;
   reset: () => void;
@@ -22,6 +24,7 @@ export function useAnalysis(): UseAnalysisReturn {
   const [stage, setStage] = useState<AnalysisStage>("form");
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [chart, setChart] = useState<ZiweiChart | null>(null);
+  const [birthData, setBirthData] = useState<BirthData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -37,6 +40,7 @@ export function useAnalysis(): UseAnalysisReturn {
     try {
       computed = computeChart(req.birth_data);
       setChart(computed);
+      setBirthData(req.birth_data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "命盤計算失敗，請確認出生日期是否有效";
       setError(`命盤計算失敗：${msg}`);
@@ -72,8 +76,9 @@ export function useAnalysis(): UseAnalysisReturn {
     setStage("form");
     setResult(null);
     setChart(null);
+    setBirthData(null);
     setError(null);
   }, []);
 
-  return { stage, result, chart, error, submit, reset };
+  return { stage, result, chart, birthData, error, submit, reset };
 }

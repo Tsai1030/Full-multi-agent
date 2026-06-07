@@ -14,7 +14,7 @@ import type { DomainType } from "@/types";
 function AnalyzePage() {
   const params = useSearchParams();
   const initialDomain = (params.get("domain") as DomainType) || "comprehensive";
-  const { stage, result, chart, error, submit, reset } = useAnalysis();
+  const { stage, result, chart, birthData, error, submit, reset } = useAnalysis();
 
   return (
     <main className="relative min-h-screen">
@@ -78,7 +78,7 @@ function AnalyzePage() {
               className="w-full flex flex-col items-center gap-10"
             >
               {chart && <ZiweiChart chart={chart} />}
-              <ResultDisplay result={result} onReset={reset} />
+              <ResultDisplay result={result} chart={chart} birthData={birthData} onReset={reset} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -4,9 +4,10 @@ API Request / Response 模型
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class BirthData(BaseModel):
@@ -57,3 +58,79 @@ class SystemStatusResponse(BaseModel):
     rag_docs: int
     tools: list[str]
     graph_nodes: list[str]
+
+
+# ── Auth ───────────────────────────────────────────────────────
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
+    display_name: str = Field(..., min_length=1, max_length=100)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+# ── Chart Profile ──────────────────────────────────────────────
+
+
+class ProfileCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100, description="命盤名稱，如「我的命盤」")
+    relation: str = Field("self", description="self / family / friend")
+    birth_data: BirthData
+    chart: dict[str, Any] = Field(..., description="iztro 命盤 JSON")
+
+
+class ProfileResponse(BaseModel):
+    id: str
+    label: str
+    relation: str
+    gender: str
+    birth_year: int
+    birth_month: int
+    birth_day: int
+    birth_hour: str
+    chart: dict[str, Any]
+    created_at: datetime
+
+
+# ── Chat（與大師對談）──────────────────────────────────────────
+
+
+class ChatSessionCreate(BaseModel):
+    profile_id: str
+    title: str | None = None
+
+
+class ChatSessionResponse(BaseModel):
+    id: str
+    profile_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: datetime
+
+
+class ChatSendRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
