@@ -23,6 +23,7 @@ dependencies = [
     "bcrypt>=4.1.0",
     "pyjwt>=2.9.0",
     "email-validator>=2.1.0",
+    "google-auth>=2.30.0",
 
     # ── Web Search ─────────────────────────────────────────
     "tavily-python>=0.3.0",

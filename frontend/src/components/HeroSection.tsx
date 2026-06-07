@@ -99,9 +99,10 @@ export default function HeroSection() {
           </motion.button>
         </Link>
         <button
-          onClick={() =>
-            document.getElementById("domains")?.scrollIntoView({ behavior: "smooth" })
-          }
+          onClick={() => {
+            const el = document.getElementById("domains");
+            if (el) window.scrollTo({ top: el.offsetTop, behavior: "smooth" });
+          }}
           className="btn-ghost-gold px-8 py-4 rounded-full text-sm tracking-widest"
         >
           了解更多 ↓

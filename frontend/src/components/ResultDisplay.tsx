@@ -1,17 +1,20 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { profileApi, ApiError } from "@/lib/api";
+import { mdToHtml } from "@/lib/markdown";
 import type { AnalysisResponse, AgentOutput, BirthData, ZiweiChart } from "@/types";
 
 interface ResultDisplayProps {
   result: AnalysisResponse;
   chart?: ZiweiChart | null;
   birthData?: BirthData | null;
+  /** 已存命盤時帶入：隱藏「儲存命盤」、「與大師詢問」直接進該命盤對談 */
+  savedProfileId?: string | null;
   onReset: () => void;
 }
 
@@ -77,7 +80,7 @@ function AgentProcess({ agents }: { agents: AgentOutput[] }) {
                   >
                     <div
                       className="result-content px-4 pb-4 pt-1 text-sm border-t border-gold-800/30"
-                      dangerouslySetInnerHTML={{ __html: formatResult(a.content) }}
+                      dangerouslySetInnerHTML={{ __html: mdToHtml(a.content) }}
                     />
                   </motion.div>
                 )}
@@ -88,18 +91,6 @@ function AgentProcess({ agents }: { agents: AgentOutput[] }) {
       </div>
     </motion.div>
   );
-}
-
-function formatResult(text: string): string {
-  return text
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-    .replace(/\n{2,}/g, '</p><p>')
-    .replace(/^(?!<[hup])(.+)$/gm, (m) => m.trim() ? `<p>${m}</p>` : '')
-    .replace(/<p><\/p>/g, '');
 }
 
 const container = {
@@ -114,15 +105,19 @@ const item = {
 function MasterActions({
   chart,
   birthData,
+  savedProfileId,
 }: {
   chart: ZiweiChart;
   birthData: BirthData;
+  savedProfileId?: string | null;
 }) {
   const { user } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState<"save" | "ask" | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(savedProfileId ?? null);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const alreadySaved = !!savedProfileId;
 
   const ensureProfile = async (): Promise<string> => {
     if (savedId) return savedId;
@@ -173,15 +168,21 @@ function MasterActions({
       <p className="text-xs tracking-[0.35em] text-gold-500 uppercase mb-1">下一步</p>
       <h3 className="font-serif text-lg font-bold text-parchment mb-1">向大師請教</h3>
       <p className="text-xs text-parchment-muted mb-5">
-        {user ? "儲存此命盤，並針對你的疑問與大師深入對談" : "登入後即可儲存命盤、與大師對談"}
+        {!user
+          ? "登入後即可儲存命盤、與大師對談"
+          : alreadySaved
+          ? "針對這份命盤，與大師深入對談"
+          : "儲存此命盤，並針對你的疑問與大師深入對談"}
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Button variant="ghost" size="md" onClick={handleSave} loading={busy === "save"} disabled={busy !== null}>
-          {savedId ? "✓ 已儲存" : "💾 儲存命盤"}
-        </Button>
+        {!alreadySaved && (
+          <Button variant="ghost" size="md" onClick={handleSave} loading={busy === "save"} disabled={busy !== null}>
+            {savedId ? "✓ 已儲存" : "儲存命盤"}
+          </Button>
+        )}
         <Button variant="gold" size="md" onClick={handleAsk} loading={busy === "ask"} disabled={busy !== null}>
-          🔮 與大師詢問
+          ✦ 與大師詢問
         </Button>
       </div>
 
@@ -201,14 +202,14 @@ function MasterActions({
   );
 }
 
-export default function ResultDisplay({ result, chart, birthData, onReset }: ResultDisplayProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    contentRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, []);
-
-  const html = formatResult(result.result || "（無結果）");
+export default function ResultDisplay({
+  result,
+  chart,
+  birthData,
+  savedProfileId,
+  onReset,
+}: ResultDisplayProps) {
+  const html = mdToHtml(result.result || "（無結果）");
   const elapsed = result.metadata?.elapsed_ms
     ? `${(result.metadata.elapsed_ms / 1000).toFixed(1)}s`
     : null;
@@ -218,7 +219,6 @@ export default function ResultDisplay({ result, chart, birthData, onReset }: Res
       variants={container}
       initial="hidden"
       animate="show"
-      ref={contentRef}
       className="w-full max-w-2xl mx-auto"
     >
       {/* Header card */}
@@ -248,15 +248,13 @@ export default function ResultDisplay({ result, chart, birthData, onReset }: Res
         <p className="text-xs tracking-[0.3em] text-gold-500 uppercase mb-3 text-center">
           ✦ 首席整合報告
         </p>
-        <div
-          ref={contentRef}
-          className="result-content"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className="result-content" dangerouslySetInnerHTML={{ __html: html }} />
       </motion.div>
 
       {/* Master CTA：儲存命盤 / 與大師詢問 */}
-      {chart && birthData && <MasterActions chart={chart} birthData={birthData} />}
+      {chart && birthData && (
+        <MasterActions chart={chart} birthData={birthData} savedProfileId={savedProfileId} />
+      )}
 
       {/* Per-agent process (collapsible) */}
       {result.agents && result.agents.length > 0 && (

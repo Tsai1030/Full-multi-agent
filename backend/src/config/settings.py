@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     cookie_samesite: str = Field("lax", alias="COOKIE_SAMESITE")
     refresh_cookie_name: str = Field("ziwei_refresh", alias="REFRESH_COOKIE_NAME")
 
+    # ── Google OAuth ───────────────────────────────────────────
+    google_oauth_client_id: str = Field("", alias="GOOGLE_OAUTH_CLIENT_ID")
+
     # ── App ────────────────────────────────────────────────────
     app_host: str = Field("0.0.0.0", alias="APP_HOST")
     app_port: int = Field(8000, alias="APP_PORT")

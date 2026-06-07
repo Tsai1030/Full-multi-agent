@@ -287,3 +287,77 @@ body {
   padding-left: 1.2rem;
   text-indent: -1.2rem;
 }
+.result-content h1 {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  margin: 1.5rem 0 0.75rem;
+}
+.result-content h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0.9rem 0 0.4rem;
+}
+.result-content em { color: var(--text-secondary); font-style: italic; }
+.result-content a { color: var(--gold-light); text-decoration: underline; }
+.result-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(201,168,76,0.12);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+.result-content ol {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  margin-bottom: 0.75rem;
+}
+.result-content ol li { margin-bottom: 0.4rem; line-height: 1.8; }
+.result-content blockquote {
+  border-left: 2px solid rgba(201,168,76,0.4);
+  padding-left: 0.9rem;
+  margin: 0.75rem 0;
+  color: var(--text-secondary);
+}
+.result-content hr {
+  border: none;
+  border-top: 1px solid rgba(201,168,76,0.25);
+  margin: 1.2rem 0;
+}
+
+/* ── Chat markdown（與大師對談，較精簡）─────────────────────── */
+.chat-md > *:first-child { margin-top: 0; }
+.chat-md > *:last-child { margin-bottom: 0; }
+.chat-md p { line-height: 1.75; margin: 0.5rem 0; }
+.chat-md strong { color: var(--gold); font-weight: 600; }
+.chat-md em { font-style: italic; color: var(--text-secondary); }
+.chat-md a { color: var(--gold-light); text-decoration: underline; }
+.chat-md h1, .chat-md h2, .chat-md h3, .chat-md h4 {
+  font-family: 'Noto Serif TC', serif;
+  color: var(--gold-light);
+  font-weight: 700;
+  margin: 0.7rem 0 0.4rem;
+  font-size: 1rem;
+}
+.chat-md ul { list-style: none; padding: 0; margin: 0.4rem 0; }
+.chat-md ul li { padding-left: 1.1rem; text-indent: -1.1rem; margin: 0.25rem 0; }
+.chat-md ul li::before { content: '◈ '; color: var(--gold-dim); }
+.chat-md ol { list-style: decimal; padding-left: 1.3rem; margin: 0.4rem 0; }
+.chat-md ol li { margin: 0.25rem 0; }
+.chat-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(201,168,76,0.12);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+.chat-md blockquote {
+  border-left: 2px solid rgba(139,92,246,0.5);
+  padding-left: 0.8rem;
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+.chat-md hr { border: none; border-top: 1px solid rgba(201,168,76,0.2); margin: 0.8rem 0; }

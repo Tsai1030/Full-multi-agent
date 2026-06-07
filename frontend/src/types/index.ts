@@ -79,7 +79,7 @@ export interface AnalysisResponse {
   };
 }
 
-export type DomainType = "love" | "wealth" | "future" | "comprehensive";
+export type DomainType = "love" | "wealth" | "career" | "future" | "comprehensive";
 
 export interface Domain {
   id: DomainType;
@@ -102,6 +102,7 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
   user: User;
+  has_profile: boolean;
 }
 
 // ── Chart Profile ────────────────────────────────────────────

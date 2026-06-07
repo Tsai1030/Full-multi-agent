@@ -86,13 +86,13 @@ export default function Navbar() {
                     onClick={() => setMenuOpen(false)}
                     className="block px-4 py-2.5 rounded-xl text-sm text-parchment-dim hover:bg-cosmos-700/50 hover:text-gold-400 transition-colors"
                   >
-                    🗂 我的命盤
+                    我的命盤
                   </Link>
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-4 py-2.5 rounded-xl text-sm text-parchment-dim hover:bg-cosmos-700/50 hover:text-red-300 transition-colors"
                   >
-                    ⎋ 登出
+                    登出
                   </button>
                 </motion.div>
               )}

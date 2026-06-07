@@ -67,11 +67,18 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=128)
     display_name: str = Field(..., min_length=1, max_length=100)
+    # 註冊時一併建立帳號主人的主命盤
+    birth_data: BirthData
+    chart: dict[str, Any] = Field(..., description="前端 iztro 計算好的命盤 JSON")
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(..., description="Google Identity Services 回傳的 ID token")
 
 
 class UserResponse(BaseModel):
@@ -84,6 +91,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    # 是否已有命盤；前端據此決定要不要導去「補生辰」頁
+    has_profile: bool = True
 
 
 # ── Chart Profile ──────────────────────────────────────────────

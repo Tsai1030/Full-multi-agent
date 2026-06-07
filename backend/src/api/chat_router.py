@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
-from ..chat import generate_master_reply
+from ..chat import generate_master_reply, stream_master_reply
 from ..db import get_db
 from ..db.models import ChartProfile, ChatMessage, ChatSession, User
 from .models import (
@@ -126,3 +129,52 @@ async def send_message(
     await db.commit()
     await db.refresh(master_msg)
     return _message_response(master_msg)
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+@chat_router.post("/sessions/{session_id}/messages/stream")
+async def stream_message(
+    session_id: str,
+    req: ChatSendRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """逐字串流大師回覆（SSE）。先存使用者訊息，串流結束後存大師訊息。"""
+    sess = await _get_owned_session(session_id, user, db)
+    profile = await db.get(ChartProfile, sess.profile_id)
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="命盤不存在")
+
+    rows = await db.scalars(
+        select(ChatMessage).where(ChatMessage.session_id == sess.id).order_by(ChatMessage.created_at)
+    )
+    history = [{"role": m.role, "content": m.content} for m in rows]
+
+    db.add(ChatMessage(session_id=sess.id, role="user", content=req.content))
+    await db.commit()
+
+    async def event_gen():
+        parts: list[str] = []
+        try:
+            async for delta in stream_master_reply(profile.chart_json, history, req.content):
+                parts.append(delta)
+                yield _sse({"delta": delta})
+        except Exception as exc:  # 串流中斷仍存下已產生的內容
+            logger.error(f"[chat stream] failed: {exc}")
+            yield _sse({"error": "大師暫時無法回應，請稍後再試"})
+
+        reply = "".join(parts).strip() or "（大師沉吟片刻，請再問一次。）"
+        master_msg = ChatMessage(session_id=sess.id, role="master", content=reply)
+        db.add(master_msg)
+        await db.commit()
+        await db.refresh(master_msg)
+        yield _sse({"done": True, "id": str(master_msg.id), "created_at": master_msg.created_at.isoformat()})
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
