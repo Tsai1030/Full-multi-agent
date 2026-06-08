@@ -89,7 +89,7 @@ async def cancel_subscription(
     }
 
 
-@subscription_router.post("/admin/upgrade")
+@subscription_router.get("/admin/upgrade")
 async def admin_upgrade(
     email: str = Query(...),
     secret: str = Query(...),
