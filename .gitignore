@@ -140,6 +140,8 @@ test_results/
 !package.json
 !requirements.txt
 !zi_wei_dou_shu_rag_chunks.json
+!tsconfig.json
+!tsconfig.*.json
 
 # 測試文件和調試文件
 test_*.py
