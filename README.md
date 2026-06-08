@@ -1,5 +1,7 @@
 # 🔮 紫微斗數 Multi-Agent AI 系統
 
+[![Live Demo](https://img.shields.io/badge/🔮_Live_Demo-ziwei--frontend.onrender.com-C9A84C?style=for-the-badge)](https://ziwei-frontend.onrender.com)
+
 [![GitHub Stars](https://img.shields.io/github/stars/Tsai1030/Full-multi-agent?style=social)](https://github.com/Tsai1030/Full-multi-agent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -10,10 +12,12 @@
 [![iztro](https://img.shields.io/badge/iztro-2.5-purple.svg)](https://github.com/SylarLong/iztro)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 
-> 一套以 **真實命盤** 為基礎、**帳號制**的紫微斗數 AI 命理應用。
+> **👉 [立即體驗線上 Demo](https://ziwei-frontend.onrender.com)**（免費方案可免登入排盤、註冊後體驗完整功能）
+>
+> 一套以 **真實命盤** 為基礎、具備**會員訂閱制**的紫微斗數 AI 命理 SaaS 應用。
 > 命盤由官方 **iztro 排盤引擎** 精準計算（不由 LLM 編造），交給 **LangGraph multi-agent** 結合 **RAG 知識庫** 深度解盤；
-> 使用者可建立帳號、**儲存多張命盤**、與**算命大師即時對談（逐字串流）**，並透過側邊欄使用多種算命功能。
-> LLM 與 Embedding 僅需一把 **Google Gemini** 金鑰。
+> 支援**事業 / 感情算命後即時追問**、**合盤分析（雙人配對）**、**星辰代幣消耗制**。
+> LLM 與 Embedding 僅需一把 **Google Gemini** 金鑰。部署於 **Render**，Docker 化。
 
 ---
 
@@ -48,6 +52,25 @@ LangGraph multi-agent 依序排盤注入、查詢知識庫、彙整解盤的後�
 ---
 
 ## ✨ 核心特色
+
+### 💎 會員訂閱 + 星辰代幣系統（v4.0 新功能）
+- 三層方案：**免費 / 基本（NT$100/月）/ 高級（NT$300/月）**，內部以「星辰代幣」計量。
+- 每項功能消耗不同代幣：對話 1 枚、分析 8–12 枚、建立命盤 3 枚。
+- 定價頁、帳號頁、代幣紀錄、升級提示彈窗，完整 SaaS 付費流程（ECPay 綠界金流預留）。
+
+### 💬 事業 / 感情分析後即時追問（v4.0 新功能）
+- 事業工作算命和感情姻緣算命各自擁有**獨立的追問聊天室**，與大師對談完全分開。
+- 追問聊天以**分析報告為依據**回答（非原始命盤），回答更精準、更貼合上下文。
+- 聊天紀錄不存資料庫（ephemeral），離開頁面即清除，保護隱私。
+
+### 💕 合盤分析——雙人配對（v4.0 新功能）
+- 感情姻緣算命頁可切換「合盤分析」模式，輸入對方生辰。
+- 後端同時解讀兩份命盤，分析夫妻宮互動、性格契合、五行相生相剋。
+
+### 🐳 Docker + Render 雲端部署（v4.0 新功能）
+- 完整 Dockerfile（backend + frontend）、`docker-compose.yml` 三服務本地跑。
+- `render.yaml` Blueprint 一鍵部署至 Render（Free tier 可用）。
+- 啟動時自動跑 migration + RAG 索引，無需手動操作。
 
 ### 🧮 真實命盤，絕不編造
 - 命盤由 [**iztro**](https://github.com/SylarLong/iztro) 官方排盤引擎在**前端**直接計算，結果與 iztro 完全一致。
@@ -492,13 +515,23 @@ coordinator
 
 **Frontend** — Next.js 14（App Router）· TypeScript · Tailwind CSS · Framer Motion · **iztro** · Google Identity Services · Yarn
 
-**Infra** — Docker（PostgreSQL）· LangSmith（追蹤）
+**Infra** — Docker · Render（雲端部署）· LangSmith（追蹤）
 
 ---
 
 ## 📝 版本記錄
 
-### v3.0.0（2026-06-07）— 當前版本
+### v4.0.0（2026-06-08）— 當前版本
+- **會員訂閱系統**：免費 / 基本（NT$100/月）/ 高級（NT$300/月）三層方案，內建星辰代幣消耗制。
+- **代幣系統**：每項功能消耗不同代幣，完整的餘額、交易紀錄、升級提示 UI。
+- **獨立追問聊天**：事業、感情分析完成後可進入獨立聊天室追問，以分析結果為上下文（ephemeral，不存 DB）。
+- **合盤分析**：感情頁切換「合盤模式」輸入對方生辰，雙人命盤配對分析。
+- **Docker 化**：backend / frontend 各有 Dockerfile，`docker-compose.yml` 三服務一鍵啟動。
+- **Render 部署**：`render.yaml` Blueprint 一鍵部署至 Render，自動 migration + RAG 索引。
+- **新頁面**：定價頁（/pricing）、帳號管理頁（/account）、事業追問頁（/career/[id]）、感情追問頁（/love/[id]）。
+- **Sidebar 強化**：代幣徽章、鎖定圖示、升級連結、帳號管理入口。
+
+### v3.0.0（2026-06-07）
 - **帳號系統**：註冊即建主命盤、Google OAuth 登入 + 補生辰、JWT（access + httpOnly refresh）、PostgreSQL + SQLAlchemy ORM。
 - **與大師對談**：SSE 逐字串流、滿版聊天、依選定命盤回答、對談紀錄存 DB。
 - **Sidebar 應用框架**：可收合側欄；排盤分析 / 我的命盤 / 對談 / 事業工作算命 / 感情姻緣算命。
