@@ -41,6 +41,8 @@ services:
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: "https://ziwei-backend.onrender.com"
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false
 
 databases:
   - name: ziwei-db
