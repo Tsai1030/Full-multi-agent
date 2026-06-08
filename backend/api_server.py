@@ -26,6 +26,9 @@ from src.api.router import api_router
 from src.api.auth_router import auth_router
 from src.api.profile_router import profile_router
 from src.api.chat_router import chat_router
+from src.api.fortune_router import fortune_router
+from src.api.subscription_router import subscription_router
+from src.api.token_router import token_router
 from src.mcp.server import create_mcp_app
 
 
@@ -68,6 +71,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(profile_router)
     app.include_router(chat_router)
+    app.include_router(fortune_router)
+    app.include_router(subscription_router)
+    app.include_router(token_router)
 
     # ── 基本路由 ──────────────────────────────────────────────
     @app.get("/")

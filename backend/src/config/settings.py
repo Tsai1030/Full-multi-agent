@@ -86,6 +86,16 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    @property
+    def async_database_url(self) -> str:
+        """Ensure DATABASE_URL uses asyncpg driver (Render gives postgresql://)."""
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
+
     # ── Auth / JWT ─────────────────────────────────────────────
     jwt_secret_key: str = Field("change-me-in-production", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM")

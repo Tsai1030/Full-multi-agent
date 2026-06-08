@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
+from ..auth.permissions import require_tokens
 from ..chat import generate_master_reply, stream_master_reply
 from ..db import get_db
 from ..db.models import ChartProfile, ChatMessage, ChatSession, User
@@ -106,6 +107,7 @@ async def send_message(
     req: ChatSendRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _tokens: None = Depends(require_tokens("chat_message")),
 ) -> ChatMessageResponse:
     sess = await _get_owned_session(session_id, user, db)
     profile = await db.get(ChartProfile, sess.profile_id)
@@ -141,6 +143,7 @@ async def stream_message(
     req: ChatSendRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _tokens: None = Depends(require_tokens("chat_message")),
 ) -> StreamingResponse:
     """逐字串流大師回覆（SSE）。先存使用者訊息，串流結束後存大師訊息。"""
     sess = await _get_owned_session(session_id, user, db)

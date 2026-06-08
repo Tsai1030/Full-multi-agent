@@ -18,7 +18,7 @@ from ..config.settings import get_settings
 @lru_cache(maxsize=1)
 def get_engine() -> AsyncEngine:
     settings = get_settings()
-    return create_async_engine(settings.database_url, pool_pre_ping=True, future=True)
+    return create_async_engine(settings.async_database_url, pool_pre_ping=True, future=True)
 
 
 @lru_cache(maxsize=1)

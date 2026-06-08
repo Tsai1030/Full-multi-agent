@@ -6,7 +6,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { chatApi, profileApi, ApiError } from "@/lib/api";
 import { mdToHtml } from "@/lib/markdown";
-import type { ChartProfile, ChatMessage } from "@/types";
+import UpgradePrompt from "@/components/UpgradePrompt";
+import { useAuth } from "@/contexts/AuthContext";
+import type { ApiErrorDetail, ChartProfile, ChatMessage } from "@/types";
 
 export default function MasterChatPage() {
   const params = useParams();
@@ -19,6 +21,8 @@ export default function MasterChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upgradeError, setUpgradeError] = useState<ApiErrorDetail | null>(null);
+  const { refreshSubscription } = useAuth();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -94,7 +98,11 @@ export default function MasterChatPage() {
         ),
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "大師暫時無法回應，請稍後再試");
+      if (e instanceof ApiError && e.isInsufficientTokens) {
+        setUpgradeError(e.detail);
+      } else {
+        setError(e instanceof ApiError ? e.message : "大師暫時無法回應，請稍後再試");
+      }
       setMessages((m) => m.filter((msg) => msg.id !== masterId));
     } finally {
       setSending(false);
@@ -110,6 +118,11 @@ export default function MasterChatPage() {
 
   return (
     <div className="h-full flex flex-col">
+      <UpgradePrompt
+        open={!!upgradeError}
+        onClose={() => setUpgradeError(null)}
+        error={upgradeError}
+      />
       {/* 頂部 bar（滿版） */}
       <header className="shrink-0 border-b border-gold-800/30 bg-cosmos-950/40 backdrop-blur-sm px-4 md:px-6 pt-16 md:pt-4 pb-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">

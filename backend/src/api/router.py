@@ -8,25 +8,60 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import AnalysisRequest, AnalysisResponse, SystemStatusResponse
+from ..auth import get_current_user
+from ..auth.permissions import require_feature, require_tokens
 from ..config.settings import get_settings
+from ..db import get_db
+from ..db.models import User
 from ..graph.builder import get_compiled_graph
 from ..graph.state import GraphState
+from ..subscription.constants import TOKEN_COSTS
 
 api_router = APIRouter(prefix="/api", tags=["analysis"])
 
+_DOMAIN_FEATURE_MAP = {
+    "career": "career",
+    "love": "love",
+    "compatibility": "compatibility",
+}
+
+_DOMAIN_TOKEN_ACTION = {
+    "career": "career_analysis",
+    "love": "love_analysis",
+    "comprehensive": "comprehensive_analysis",
+    "compatibility": "compatibility_analysis",
+}
+
 
 @api_router.post("/analyze", response_model=AnalysisResponse)
-async def analyze_chart(request: AnalysisRequest) -> AnalysisResponse:
+async def analyze_chart(
+    request: AnalysisRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisResponse:
     """
     執行紫微斗數命盤分析（主要端點）
     - 呼叫 LangGraph multi-agent graph
     - graph 內部會依序呼叫 get_ziwei_chart / search_ziwei_knowledge / web_search
     - 最後由 synthesizer 產生報告
     """
+    # Feature gate: check if plan allows this domain
+    feature = _DOMAIN_FEATURE_MAP.get(request.domain_type)
+    if feature:
+        checker = require_feature(feature)
+        await checker(user=user, db=db)
+
+    # Token gate: deduct tokens for the analysis
+    action = _DOMAIN_TOKEN_ACTION.get(request.domain_type)
+    if action:
+        token_checker = require_tokens(action)
+        await token_checker(user=user, db=db)
+
     settings = get_settings()
     t0 = time.perf_counter()
 

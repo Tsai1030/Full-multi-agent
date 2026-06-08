@@ -12,8 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
+from ..auth.permissions import require_tokens
 from ..db import get_db
 from ..db.models import ChartProfile, User
+from ..subscription.service import get_user_subscription_info
 from .models import ProfileCreate, ProfileResponse
 
 profile_router = APIRouter(prefix="/api/profiles", tags=["profiles"])
@@ -57,8 +59,26 @@ async def list_profiles(
 
 @profile_router.post("", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
-    req: ProfileCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    req: ProfileCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _tokens: None = Depends(require_tokens("profile_create")),
 ) -> ProfileResponse:
+    info = await get_user_subscription_info(user.id, db)
+    if info["max_profiles"] != -1:
+        count_stmt = select(ChartProfile.id).where(ChartProfile.user_id == user.id)
+        existing = len((await db.scalars(count_stmt)).all())
+        if existing >= info["max_profiles"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "profile_limit",
+                    "max_profiles": info["max_profiles"],
+                    "current": existing,
+                    "upgrade_url": "/pricing",
+                    "message": f"目前方案最多可儲存 {info['max_profiles']} 個命盤",
+                },
+            )
     b = req.birth_data
     profile = ChartProfile(
         user_id=user.id,

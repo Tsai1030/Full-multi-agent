@@ -1,13 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { GoldSelect } from "@/components/ui/GoldSelect";
 import DivinationLoader from "@/components/DivinationLoader";
 import ResultDisplay from "@/components/ResultDisplay";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import { analyzeChart, profileApi, ApiError } from "@/lib/api";
-import type { AnalysisResponse, BirthData, ChartProfile, DomainType } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import type { AnalysisResponse, ApiErrorDetail, BirthData, ChartProfile, DomainType } from "@/types";
 
 interface FortuneFeatureProps {
   title: string;
@@ -17,6 +20,17 @@ interface FortuneFeatureProps {
 }
 
 type Stage = "form" | "loading" | "result";
+
+const TOKEN_COSTS: Record<string, number> = {
+  career: 8,
+  love: 8,
+  comprehensive: 10,
+};
+
+const QUESTION_PLACEHOLDERS: Record<string, string[]> = {
+  career: ["我適合轉職嗎？", "我的事業什麼時候會起飛？", "我適合創業還是上班？", "我的職場貴人在哪？"],
+  love: ["我今年會遇到正緣嗎？", "我跟對方合適嗎？", "我的桃花什麼時候開？", "我的感情課題是什麼？"],
+};
 
 function toBirthData(p: ChartProfile): BirthData {
   return {
@@ -29,11 +43,26 @@ function toBirthData(p: ChartProfile): BirthData {
 }
 
 export default function FortuneFeature({ title, subtitle, domain, question }: FortuneFeatureProps) {
+  const router = useRouter();
+  const { subscription, refreshSubscription } = useAuth();
   const [profiles, setProfiles] = useState<ChartProfile[] | null>(null);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [customQuestion, setCustomQuestion] = useState("");
   const [stage, setStage] = useState<Stage>("form");
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [upgradeError, setUpgradeError] = useState<ApiErrorDetail | null>(null);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+
+  const placeholders = QUESTION_PLACEHOLDERS[domain] || [];
+
+  useEffect(() => {
+    if (placeholders.length === 0) return;
+    const timer = setInterval(() => {
+      setPlaceholderIdx((i) => (i + 1) % placeholders.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [placeholders.length]);
 
   useEffect(() => {
     let active = true;
@@ -57,6 +86,8 @@ export default function FortuneFeature({ title, subtitle, domain, question }: Fo
     [profiles, selectedId],
   );
 
+  const tokenCost = TOKEN_COSTS[domain] ?? 8;
+
   const handleAnalyze = async () => {
     if (!selected) return;
     setError(null);
@@ -65,24 +96,36 @@ export default function FortuneFeature({ title, subtitle, domain, question }: Fo
       const res = await analyzeChart({
         birth_data: toBirthData(selected),
         domain_type: domain,
-        user_question: question,
+        user_question: customQuestion.trim() || question,
         chart: selected.chart,
       });
       if (res.success) {
         setResult(res);
         setStage("result");
+        await refreshSubscription();
+
+        if (selected && res.result) {
+          sessionStorage.setItem(`${domain}-result-${selected.id}`, res.result);
+          sessionStorage.setItem(`${domain}-chart-${selected.id}`, JSON.stringify(selected.chart));
+        }
       } else {
         setError(res.error || "分析失敗，請稍後再試");
         setStage("form");
       }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "連線失敗，請確認後端服務是否正常");
-      setStage("form");
+      if (e instanceof ApiError && (e.isFeatureLocked || e.isInsufficientTokens)) {
+        setUpgradeError(e.detail);
+        setStage("form");
+      } else {
+        setError(e instanceof ApiError ? e.message : "連線失敗，請確認後端服務是否正常");
+        setStage("form");
+      }
     }
   };
 
   const reset = () => {
     setResult(null);
+    setCustomQuestion("");
     setStage("form");
   };
 
@@ -90,15 +133,43 @@ export default function FortuneFeature({ title, subtitle, domain, question }: Fo
     <div className="h-full overflow-y-auto">
       <AnimatePresence>{stage === "loading" && <DivinationLoader />}</AnimatePresence>
 
+      <UpgradePrompt
+        open={!!upgradeError}
+        onClose={() => setUpgradeError(null)}
+        error={upgradeError}
+      />
+
       <div className="w-full max-w-2xl mx-auto px-4 pt-16 md:pt-12 pb-16">
         {stage === "result" && result && selected ? (
-          <ResultDisplay
-            result={result}
-            chart={selected.chart}
-            birthData={toBirthData(selected)}
-            savedProfileId={selected.id}
-            onReset={reset}
-          />
+          <>
+            <ResultDisplay
+              result={result}
+              chart={selected.chart}
+              birthData={toBirthData(selected)}
+              savedProfileId={selected.id}
+              onReset={reset}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="card-gold rounded-3xl p-6 mb-8 text-center"
+            >
+              <p className="text-xs tracking-[0.3em] text-gold-500 uppercase mb-2">想了解更多？</p>
+              <h3 className="font-serif text-lg font-bold text-parchment mb-2">向顧問追問</h3>
+              <p className="text-xs text-parchment-muted mb-4">
+                針對這份分析結果，你可以進一步追問細節或詢問具體建議
+              </p>
+              <Button
+                variant="gold"
+                size="md"
+                onClick={() => router.push(`/${domain}/${selected.id}`)}
+                className="font-serif"
+              >
+                ✦ 開始追問
+              </Button>
+            </motion.div>
+          </>
         ) : (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <div className="text-center mb-8">
@@ -137,7 +208,33 @@ export default function FortuneFeature({ title, subtitle, domain, question }: Fo
                   </GoldSelect>
                 </div>
 
+                <div>
+                  <label className="text-xs font-medium tracking-widest text-gold-500 uppercase mb-2 block">
+                    想問大師什麼？（選填）
+                  </label>
+                  <textarea
+                    value={customQuestion}
+                    onChange={(e) => setCustomQuestion(e.target.value)}
+                    maxLength={200}
+                    rows={3}
+                    placeholder={placeholders[placeholderIdx] || "輸入你想問的問題…"}
+                    className="input-mystic w-full rounded-2xl px-4 py-3 text-sm resize-none"
+                  />
+                  <p className="text-[11px] text-parchment-muted mt-1 text-right">
+                    {customQuestion.length}/200
+                  </p>
+                </div>
+
                 {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-parchment-muted">
+                    此分析消耗 <span className="text-gold-400">{tokenCost} 星辰代幣</span>
+                    {subscription && subscription.monthly_tokens !== -1 && (
+                      <> · 剩餘 {subscription.token_balance}</>
+                    )}
+                  </span>
+                </div>
 
                 <Button
                   variant="gold"

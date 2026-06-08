@@ -27,6 +27,7 @@ from ..auth import (
 from ..config.settings import get_settings
 from ..db import get_db
 from ..db.models import ChartProfile, User
+from ..subscription.service import create_free_subscription
 from .models import (
     GoogleAuthRequest,
     LoginRequest,
@@ -98,6 +99,9 @@ async def register(req: RegisterRequest, response: Response, db: AsyncSession = 
             chart_json=req.chart,
         )
     )
+    await db.flush()
+    await create_free_subscription(user.id, db)
+
     await db.commit()
     await db.refresh(user)
     logger.info(f"User registered with primary chart: {user.email}")
@@ -143,6 +147,8 @@ async def google_auth(req: GoogleAuthRequest, response: Response, db: AsyncSessi
             display_name=info.get("name") or email.split("@")[0],
         )
         db.add(user)
+        await db.flush()
+        await create_free_subscription(user.id, db)
         await db.commit()
         await db.refresh(user)
         logger.info(f"User created via Google: {email}")

@@ -1,0 +1,47 @@
+services:
+  # Backend API
+  - type: web
+    name: ziwei-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ziwei-db
+          property: connectionString
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: "none"
+      - key: APP_CORS_ORIGINS
+        value: "https://ziwei-frontend.onrender.com"
+      - key: RAG_DATA_PATH
+        value: /app/data/zi_wei_dou_shu_rag_chunks.json
+      - key: RAG_VECTOR_DB_PATH
+        value: /app/data/vector_db
+    healthCheckPath: /health
+
+  # Frontend
+  - type: web
+    name: ziwei-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    region: singapore
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://ziwei-backend.onrender.com"
+
+databases:
+  - name: ziwei-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"

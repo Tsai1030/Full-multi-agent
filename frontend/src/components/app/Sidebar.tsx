@@ -5,19 +5,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import TokenBadge from "@/components/TokenBadge";
 
 interface NavItem {
   href: string;
   label: string;
   icon: string;
+  feature?: string;
 }
 
 const NAV: NavItem[] = [
   { href: "/reading", label: "排盤分析", icon: "✶" },
   { href: "/profiles", label: "我的命盤", icon: "❖" },
   { href: "/master", label: "與大師對談", icon: "✦" },
-  { href: "/career", label: "事業工作算命", icon: "❂" },
-  { href: "/love", label: "感情姻緣算命", icon: "❤" },
+  { href: "/career", label: "事業工作算命", icon: "❂", feature: "career" },
+  { href: "/love", label: "感情姻緣算命", icon: "❤", feature: "love" },
 ];
 
 const STORAGE_KEY = "ziwei-sidebar-collapsed";
@@ -37,7 +39,8 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, subscription } = useAuth();
+  const features = subscription?.features ?? {};
 
   const handleLogout = async () => {
     onNavigate?.();
@@ -82,28 +85,63 @@ function SidebarContent({
       <nav className="flex flex-col gap-1.5">
         {NAV.map((item) => {
           const active = isActive(pathname, item.href);
+          const locked = item.feature ? !features[item.feature] : false;
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-              title={item.label}
+              title={locked ? `${item.label}（需升級）` : item.label}
               className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-300 ${
                 collapsed ? "justify-center px-0 py-3" : "px-3 py-2.5"
               } ${
                 active
                   ? "bg-gold-500/12 text-gold-300 border border-gold-600/40 shadow-gold-sm"
                   : "text-parchment-dim border border-transparent hover:bg-cosmos-700/40 hover:text-gold-400"
-              }`}
+              } ${locked ? "opacity-60" : ""}`}
             >
               <span className={`text-base ${active ? "text-gold-400" : "text-gold-600"}`}>
                 {item.icon}
               </span>
-              {!collapsed && <span className="font-medium tracking-wide whitespace-nowrap">{item.label}</span>}
+              {!collapsed && (
+                <span className="font-medium tracking-wide whitespace-nowrap flex items-center gap-1.5">
+                  {item.label}
+                  {locked && <span className="text-[10px] text-parchment-muted">🔒</span>}
+                </span>
+              )}
             </Link>
           );
         })}
       </nav>
+
+      {/* Token badge + account links */}
+      <div className="mt-4 flex flex-col gap-1.5">
+        <TokenBadge collapsed={collapsed} />
+        {subscription && subscription.plan_name !== "premium" && (
+          <Link
+            href="/pricing"
+            onClick={onNavigate}
+            title="升級方案"
+            className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-300 text-gold-400 border border-gold-600/30 hover:bg-gold-500/10 hover:border-gold-500/50 ${
+              collapsed ? "justify-center px-0 py-3" : "px-3 py-2.5"
+            }`}
+          >
+            <span className="text-base">⬆</span>
+            {!collapsed && <span className="font-medium tracking-wide whitespace-nowrap">升級方案</span>}
+          </Link>
+        )}
+        <Link
+          href="/account"
+          onClick={onNavigate}
+          title="帳號管理"
+          className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-300 text-parchment-dim border border-transparent hover:bg-cosmos-700/40 hover:text-gold-400 ${
+            collapsed ? "justify-center px-0 py-3" : "px-3 py-2.5"
+          } ${isActive(pathname, "/account") ? "bg-gold-500/12 text-gold-300 border-gold-600/40" : ""}`}
+        >
+          <span className="text-base text-gold-600">👤</span>
+          {!collapsed && <span className="font-medium tracking-wide whitespace-nowrap">帳號管理</span>}
+        </Link>
+      </div>
 
       <div className="flex-1" />
 

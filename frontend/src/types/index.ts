@@ -141,3 +141,54 @@ export interface ChatMessage {
   content: string;
   created_at: string;
 }
+
+// ── Subscription & Tokens ───────────────────────────────────
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  display_name: string;
+  price_twd: number;
+  monthly_tokens: number;
+  max_profiles: number;
+  features: Record<string, boolean>;
+}
+
+export interface SubscriptionInfo {
+  plan_name: string;
+  plan_display_name: string;
+  status: string;
+  token_balance: number;
+  period_end: string | null;
+  features: Record<string, boolean>;
+  monthly_tokens: number;
+  max_profiles: number;
+  price_twd: number;
+  cancel_at_period_end: boolean;
+}
+
+export interface TokenTransaction {
+  id: string;
+  amount: number;
+  action: string;
+  reference_id: string | null;
+  balance_after: number;
+  created_at: string;
+}
+
+export interface TokenCheckResult {
+  allowed: boolean;
+  cost: number;
+  balance: number;
+}
+
+export interface ApiErrorDetail {
+  error: string;
+  feature?: string;
+  required_plan?: string;
+  action?: string;
+  required?: number;
+  balance?: number;
+  upgrade_url?: string;
+  message?: string;
+}

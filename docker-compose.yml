@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ziwei_dev_pw
       POSTGRES_DB: ziwei
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ziwei_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,5 +17,42 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ziwei-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ziwei:ziwei_dev_pw@postgres:5432/ziwei
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+      RAG_DATA_PATH: /app/data/zi_wei_dou_shu_rag_chunks.json
+      RAG_VECTOR_DB_PATH: /app/data/vector_db
+    volumes:
+      - ziwei_vectordb:/app/data/vector_db
+      - ./zi_wei_dou_shu_rag_chunks.json:/app/data/zi_wei_dou_shu_rag_chunks.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: ziwei-frontend
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    depends_on:
+      - backend
+
 volumes:
   ziwei_pgdata:
+  ziwei_vectordb:

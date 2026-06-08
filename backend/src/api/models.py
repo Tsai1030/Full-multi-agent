@@ -143,3 +143,66 @@ class ChatMessageResponse(BaseModel):
 
 class ChatSendRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=2000)
+
+
+# ── Subscription & Tokens ─────────────────────────────────────
+
+
+class PlanResponse(BaseModel):
+    id: str
+    name: str
+    display_name: str
+    price_twd: int
+    monthly_tokens: int
+    max_profiles: int
+    features: dict[str, bool]
+
+
+class SubscriptionInfoResponse(BaseModel):
+    plan_name: str
+    plan_display_name: str
+    status: str
+    token_balance: int
+    period_end: str | None
+    features: dict[str, bool]
+    monthly_tokens: int
+    max_profiles: int
+    price_twd: int
+    cancel_at_period_end: bool
+
+
+class SubscribeRequest(BaseModel):
+    plan_name: str = Field(..., description="Plan to subscribe: basic / premium")
+
+
+class TokenBalanceResponse(BaseModel):
+    balance: int
+    period_start: str | None
+    period_end: str | None
+
+
+class TokenTransactionResponse(BaseModel):
+    id: str
+    amount: int
+    action: str
+    reference_id: str | None
+    balance_after: int
+    created_at: datetime
+
+
+class TokenCheckRequest(BaseModel):
+    action: str = Field(..., description="Action to check: chat_message, career_analysis, etc.")
+
+
+class TokenCheckResponse(BaseModel):
+    allowed: bool
+    cost: int
+    balance: int
+
+
+class FortuneStreamRequest(BaseModel):
+    domain: str = Field(..., description="career / love")
+    analysis_context: str = Field(..., description="The analysis result text to use as context")
+    chart_text: str = Field("", description="Formatted chart text for reference")
+    messages: list[dict[str, str]] = Field(default_factory=list, description="Conversation history")
+    user_message: str = Field(..., min_length=1, max_length=2000)

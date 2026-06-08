@@ -241,6 +241,59 @@ yarn dev
 
 ---
 
+## ⚠️ 啟動注意事項
+
+實際跑起來最常卡關的幾個地方，先看過一遍可以省下不少除錯時間：
+
+### 1. 首次啟動務必先跑 migration
+
+Docker 起的 PostgreSQL 是全新空庫，**沒有任何資料表**。沒先跑 `alembic upgrade head` 就直接啟動後端，
+一碰到登入 / 註冊就會報 `relation "users" does not exist`。
+
+```bash
+cd backend
+uv run alembic upgrade head
+```
+
+### 2. Port 5432 衝突（本機已有原生 PostgreSQL）
+
+如果本機已經在跑非 Docker 的 PostgreSQL（佔用 `5432`），`docker compose up -d` 仍會「成功」，但容器的
+host port 會綁定失敗——`docker compose ps` 顯示 healthy，實際上 `localhost:5432` 連到的是原生那一個，
+帳密完全對不上。判斷方式：`netstat -ano | findstr :5432` 看到非 Docker 程序也在監聽。
+
+解法是把 Docker 容器改用其他 host port，兩邊互不干擾：
+
+1. [`docker-compose.yml`](docker-compose.yml) 的 `ports` 改成 `"5433:5432"`（或其他未被佔用的埠）
+2. `.env` 的 `DATABASE_URL` 同步改成 `localhost:5433`
+3. `docker compose down && docker compose up -d` 重建容器
+
+### 3. 自訂前後端 Port
+
+預設前端 `3000` / 後端 `8000`。若要改成其他埠（例如前端 `3333`、後端 `8222`），**下列幾處要一起改，缺一個都會連不上**：
+
+| 檔案 | 設定 | 改法 |
+|------|------|------|
+| `frontend/package.json` | `"dev": "next dev -p 3000"` | 改成 `next dev -p 3333` |
+| `.env`（後端） | `APP_PORT=8000` | 改成 `8222` |
+| `.env`（後端） | `APP_CORS_ORIGINS=http://localhost:3000` | 改成 `http://localhost:3333`（否則前端會被 CORS 擋下） |
+| `frontend/.env.local` | `NEXT_PUBLIC_API_URL=http://localhost:8000` | 改成 `http://localhost:8222` |
+
+改完兩邊都要重新啟動（`.env` 是啟動時讀取並快取，存檔不會讓正在跑的程序生效）。
+
+### 4. Google 登入：三處設定必須一致
+
+Google OAuth 出錯九成是這三個地方對不起來：
+
+| 位置 | 設定 | 要求 |
+|------|------|------|
+| Google Cloud Console → Credentials → OAuth Client | Authorized JavaScript origins | 必須包含目前實際的前端來源，例如 `http://localhost:3333`（**改了前端 port 記得回來加**，否則出現 `origin_mismatch`） |
+| `frontend/.env.local` | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | 你的 OAuth Client ID |
+| `.env`（後端） | `GOOGLE_OAUTH_CLIENT_ID` | **必須跟前端同一組值**，否則後端驗證 token 的 audience 對不上，會回傳「Google 憑證無效」（`.env.example` 預設是佔位字串 `your_client_id...`，記得換成真的值） |
+
+Google Cloud Console 改完設定後，通常需要等幾分鐘到數小時才會生效。
+
+---
+
 ## 🔮 使用流程
 
 1. 前往 `http://localhost:3000/analyze`
